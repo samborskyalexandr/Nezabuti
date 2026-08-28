@@ -1,0 +1,42 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Uploads & runtime data
+uploads/**
+!uploads/.gitkeep
+**/tmp-uploads/
+**/.tmp-*
+
+# Mongo
+mongodb_data/
+data/db/
+
+# .NET
+**/bin/
+**/obj/
+**/out/
+*.user
+*.suo
+*.swp
+
+# Node / Angular
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+npm-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Build / Docker
+*.log
+docker-data/
+.vs/

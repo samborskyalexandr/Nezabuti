@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-memorial-bg text-memorial-ink font-sans antialiased;
+  }
+}
+
+@layer components {
+  .prose-memorial {
+    @apply font-sans text-[1.05rem] leading-[1.8] text-memorial-ink/95;
+  }
+
+  .prose-memorial h2 {
+    @apply font-serif text-[1.85rem] font-semibold leading-snug text-memorial-ink mt-10 mb-4;
+  }
+
+  .prose-memorial h3 {
+    @apply font-serif text-[1.4rem] font-semibold leading-snug text-memorial-ink mt-8 mb-3;
+  }
+
+  .prose-memorial p {
+    @apply my-4;
+  }
+
+  .prose-memorial ul,
+  .prose-memorial ol {
+    @apply my-4 pl-5;
+  }
+
+  .prose-memorial ul {
+    list-style: disc;
+  }
+
+  .prose-memorial ol {
+    list-style: decimal;
+  }
+
+  .prose-memorial li {
+    @apply my-1.5;
+  }
+
+  .prose-memorial strong,
+  .prose-memorial b {
+    @apply font-semibold;
+  }
+
+  .prose-memorial em,
+  .prose-memorial i {
+    @apply italic;
+  }
+
+  .prose-memorial blockquote {
+    @apply border-l border-memorial-line pl-5 my-6 font-serif text-xl leading-relaxed text-memorial-ink/90;
+  }
+}
+
+@layer utilities {
+  .reveal {
+    opacity: 0;
+    transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+    will-change: opacity, transform;
+  }
+
+  .reveal-fade-in {
+    transform: none;
+  }
+
+  .reveal-fade-up,
+  .reveal-timeline {
+    transform: translateY(14px);
+  }
+
+  .reveal-scale {
+    transform: scale(0.985);
+  }
+
+  .reveal.is-revealed {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal,
+    .reveal-fade-in,
+    .reveal-fade-up,
+    .reveal-scale,
+    .reveal-timeline {
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+    }
+  }
+}

@@ -1,0 +1,78 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-nezabuti}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - nezabuti
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend/Nezabuti.Api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      MONGO_CONNECTION_STRING: mongodb://mongodb:27017
+      MONGO_DATABASE: ${MONGO_DATABASE:-nezabuti}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-nezabuti}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-nezabuti-admin}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8088}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8088}
+      IMAGE_MAX_UPLOAD_BYTES: ${IMAGE_MAX_UPLOAD_BYTES:-26214400}
+      IMAGE_THUMB_MAX_DIMENSION: ${IMAGE_THUMB_MAX_DIMENSION:-320}
+      IMAGE_PREVIEW_MAX_DIMENSION: ${IMAGE_PREVIEW_MAX_DIMENSION:-800}
+      IMAGE_FULL_MAX_DIMENSION: ${IMAGE_FULL_MAX_DIMENSION:-2000}
+      IMAGE_WEBP_QUALITY: ${IMAGE_WEBP_QUALITY:-80}
+      UPLOADS_ROOT: /app/uploads
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - nezabuti
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8088}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_HOST_PORT:-8088}:80"
+    networks:
+      - nezabuti
+
+networks:
+  nezabuti:
+    driver: bridge
+
+volumes:
+  mongodb_data:

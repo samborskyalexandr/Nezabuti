@@ -1,0 +1,23 @@
+# Production override.
+# Requires an external Docker network named `edge` (managed by edge-proxy).
+# Frontend joins `edge` with alias `nezabuti-frontend` so the proxy can route
+# nezabuti.com.ua → nezabuti-frontend:80 without publishing host 80/443 here.
+
+services:
+  frontend:
+    ports: !reset []
+    networks:
+      nezabuti:
+      edge:
+        aliases:
+          - nezabuti-frontend
+
+  backend:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://nezabuti.com.ua}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://nezabuti.com.ua}
+
+networks:
+  edge:
+    external: true

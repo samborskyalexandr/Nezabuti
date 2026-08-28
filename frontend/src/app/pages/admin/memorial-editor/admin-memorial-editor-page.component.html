@@ -1,0 +1,297 @@
+@if (memorial) {
+  <div class="space-y-8">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <a [routerLink]="listHref" class="font-sans text-sm text-memorial-muted">← До списку</a>
+        <h1 class="mt-2 font-serif text-3xl">Редагування меморіалу</h1>
+        <p class="mt-1 font-sans text-sm text-memorial-muted">
+          PublicId: <strong class="text-memorial-ink">{{ memorial.publicId }}</strong>
+          <span class="mx-1">·</span>
+          Статус: {{ statusLabels[memorial.status] }}
+          @if (dirty) {
+            <span class="ml-2 text-amber-800">• є незбережені зміни</span>
+          }
+        </p>
+        <p class="mt-1 font-sans text-xs text-memorial-muted">
+          Створено: {{ memorial.createdAt | date:'short' }} · Оновлено: {{ memorial.updatedAt | date:'short' }}
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        @if (memorial.status === 'Archived') {
+          <button
+            type="button"
+            class="border border-memorial-ink bg-memorial-ink px-3 py-2 font-sans text-sm text-white disabled:opacity-50"
+            [disabled]="restoring"
+            (click)="restore()"
+          >
+            {{ restoring ? 'Відновлення…' : 'Відновити з архіву' }}
+          </button>
+          <a class="border border-memorial-line px-3 py-2 font-sans text-sm" [href]="previewHref" target="_blank" rel="noopener">Перегляд</a>
+        } @else {
+          <button
+            type="button"
+            class="border border-memorial-ink bg-memorial-ink px-3 py-2 font-sans text-sm text-white disabled:opacity-50"
+            [disabled]="saving || isArchived"
+            (click)="save()"
+          >
+            {{ saving ? 'Збереження…' : 'Зберегти' }}
+          </button>
+          <a class="border border-memorial-line px-3 py-2 font-sans text-sm" [href]="previewHref" target="_blank" rel="noopener">Перегляд</a>
+          @if (memorial.status === 'Draft') {
+            <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" (click)="publish()">Опублікувати</button>
+          }
+          <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" (click)="archive()">Архівувати</button>
+        }
+        <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" [disabled]="qrBusy" (click)="downloadQr('png')">QR PNG</button>
+        <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" [disabled]="qrBusy" (click)="downloadQr('svg')">QR SVG</button>
+      </div>
+    </div>
+
+    @if (memorial.status === 'Archived') {
+      <p class="border border-memorial-line bg-[#FAFAF8] px-4 py-3 font-sans text-sm text-memorial-muted">
+        Меморіал в архіві. Редагування недоступне, доки його не відновлено. Після відновлення статус стане «Чернетка».
+      </p>
+    }
+
+    @if (message) {
+      <p class="font-sans text-sm text-memorial-accent">{{ message }}</p>
+    }
+    @if (error) {
+      <p class="font-sans text-sm text-red-700">{{ error }}</p>
+    }
+
+    <fieldset class="min-w-0 space-y-8 border-0 p-0 disabled:opacity-75" [disabled]="isArchived">
+    <!-- Main info -->
+    <section class="space-y-4 border border-memorial-line bg-white p-6">
+      <h2 class="font-serif text-xl">Основна інформація</h2>
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="block font-sans text-sm md:col-span-2">
+          ПІБ *
+          <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="memorial.fullName" (ngModelChange)="markDirty()" required />
+        </label>
+        <label class="block font-sans text-sm">
+          Позивний
+          <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="memorial.callsign" (ngModelChange)="markDirty()" />
+        </label>
+        <label class="block font-sans text-sm">
+          Роки життя
+          <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="memorial.lifePeriod" (ngModelChange)="markDirty()" placeholder="напр. 1995–2024" />
+        </label>
+        <label class="block font-sans text-sm md:col-span-2">
+          Короткий опис
+          <textarea class="mt-1 w-full border border-memorial-line px-3 py-2" rows="3" [(ngModel)]="memorial.shortText" (ngModelChange)="markDirty()"></textarea>
+        </label>
+        <div class="md:col-span-2">
+          <p class="font-sans text-sm">Видимість</p>
+          <div class="mt-2 space-y-2">
+            <label class="flex items-start gap-2 font-sans text-sm">
+              <input type="radio" name="privacy" [(ngModel)]="memorial.privacy" value="Public" (ngModelChange)="markDirty()" class="mt-1" />
+              <span>
+                <strong>Публічна</strong>
+                <span class="block text-memorial-muted">Сторінка доступна за QR/посиланням і може індексуватися пошуковиками.</span>
+              </span>
+            </label>
+            <label class="flex items-start gap-2 font-sans text-sm">
+              <input type="radio" name="privacy" [(ngModel)]="memorial.privacy" value="Private" (ngModelChange)="markDirty()" class="mt-1" />
+              <span>
+                <strong>Приватна</strong>
+                <span class="block text-memorial-muted">Сторінка доступна за QR/посиланням, але не індексується пошуковими системами.</span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main photo -->
+    <section class="space-y-4 border border-memorial-line bg-white p-6">
+      <h2 class="font-serif text-xl">Головне фото *</h2>
+      <div class="flex flex-wrap items-start gap-6">
+        @if (memorial.mainPhoto) {
+          <img [src]="memorial.mainPhoto.previewUrl || memorial.mainPhoto.thumbUrl" alt="Головне фото" class="h-40 w-40 object-cover border border-memorial-line" />
+        } @else {
+          <div class="flex h-40 w-40 items-center justify-center border border-dashed border-memorial-line font-sans text-xs text-memorial-muted">Немає фото</div>
+        }
+        <div class="space-y-2">
+          <label class="inline-block cursor-pointer border border-memorial-ink px-4 py-2 font-sans text-sm">
+            {{ uploadingMain ? 'Завантаження…' : 'Завантажити фото' }}
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" [disabled]="uploadingMain" (change)="onMainPhotoSelected($event)" />
+          </label>
+          @if (memorial.mainPhoto) {
+            <button type="button" class="block font-sans text-sm text-red-700" (click)="removeMainPhoto()">Видалити фото</button>
+          }
+          <p class="font-sans text-xs text-memorial-muted">Створюються thumb / preview / full (WebP). Оригінал не зберігається.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Blocks -->
+    <section class="space-y-4 border border-memorial-line bg-white p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="font-serif text-xl">Блоки</h2>
+        <button type="button" class="border border-memorial-ink px-3 py-2 font-sans text-sm" (click)="showAddBlock = !showAddBlock">+ Додати блок</button>
+      </div>
+
+      @if (showAddBlock) {
+        <div class="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+          @for (type of blockTypes; track type) {
+            <button type="button" class="border border-memorial-line px-3 py-2 text-left font-sans text-sm hover:bg-[#FAFAF8]" (click)="addBlock(type)">
+              {{ blockTypeLabels[type] }}
+            </button>
+          }
+        </div>
+      }
+
+      <ul class="space-y-3">
+        @for (block of memorial.blocks; track block.id; let i = $index) {
+          <li class="border border-memorial-line">
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-[#FAFAF8] px-3 py-2">
+              <button type="button" class="font-sans text-sm" (click)="toggleBlock(block.id)">
+                #{{ i + 1 }} — {{ blockTypeLabels[block.type] || block.type }}
+                @if (blockEmpty(block)) {
+                  <span class="ml-2 text-amber-800">(порожній)</span>
+                }
+              </button>
+              <div class="flex gap-1">
+                <button type="button" class="border border-memorial-line px-2 py-1 text-xs" (click)="moveBlock(i, -1)">Вгору</button>
+                <button type="button" class="border border-memorial-line px-2 py-1 text-xs" (click)="moveBlock(i, 1)">Вниз</button>
+                <button type="button" class="border border-memorial-line px-2 py-1 text-xs" (click)="toggleBlock(block.id)">Редагувати</button>
+                <button type="button" class="border border-red-700 px-2 py-1 text-xs text-red-700" (click)="removeBlock(i)">Видалити</button>
+              </div>
+            </div>
+
+            @if (expandedBlockId === block.id) {
+              <div class="space-y-4 p-4">
+                @switch (block.type) {
+                  @case ('Text') {
+                    <app-semantic-text-editor [ngModel]="textHtml(block)" (ngModelChange)="setTextHtml(block, $event)" />
+                  }
+                  @case ('Quote') {
+                    <label class="block font-sans text-sm">Текст<textarea class="mt-1 w-full border border-memorial-line px-3 py-2" rows="3" [(ngModel)]="block.data['text']" (ngModelChange)="markDirty()"></textarea></label>
+                    <label class="block font-sans text-sm">Автор<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['author']" (ngModelChange)="markDirty()" /></label>
+                    <label class="block font-sans text-sm">Опис автора<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['authorDescription']" (ngModelChange)="markDirty()" /></label>
+                  }
+                  @case ('Service') {
+                    <div class="grid gap-3 md:grid-cols-2">
+                      <label class="block font-sans text-sm">Позивний<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['callsign']" (ngModelChange)="markDirty()" /></label>
+                      <label class="block font-sans text-sm">Звання<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['rank']" (ngModelChange)="markDirty()" /></label>
+                      <label class="block font-sans text-sm">Підрозділ<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['unit']" (ngModelChange)="markDirty()" /></label>
+                      <label class="block font-sans text-sm">Період служби<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['servicePeriod']" (ngModelChange)="markDirty()" /></label>
+                      <label class="block font-sans text-sm md:col-span-2">Опис<textarea class="mt-1 w-full border border-memorial-line px-3 py-2" rows="3" [(ngModel)]="block.data['description']" (ngModelChange)="markDirty()"></textarea></label>
+                    </div>
+                  }
+                  @case ('Image') {
+                    @if (block.data['previewUrl'] || block.data['photo']) {
+                      <img [src]="block.data['previewUrl'] || photoPreview(block.data['photo'])" alt="" class="max-h-48 border border-memorial-line" />
+                    }
+                    <label class="inline-block cursor-pointer border border-memorial-line px-3 py-2 font-sans text-sm">
+                      Завантажити фото
+                      <input type="file" accept="image/*" class="hidden" (change)="uploadBlockPhoto(block, $event, 'image')" />
+                    </label>
+                    <label class="block font-sans text-sm">Підпис<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['caption']" (ngModelChange)="markDirty()" /></label>
+                  }
+                  @case ('Gallery') {
+                    <label class="inline-block cursor-pointer border border-memorial-line px-3 py-2 font-sans text-sm">
+                      + Додати фото
+                      <input type="file" accept="image/*" class="hidden" (change)="uploadBlockPhoto(block, $event, 'gallery')" />
+                    </label>
+                    <ul class="space-y-3">
+                      @for (item of asItems(block); track item['photoId']; let gi = $index) {
+                        <li class="flex flex-wrap items-center gap-3 border border-memorial-line p-2">
+                          <img [src]="item['previewUrl'] || item['thumbUrl']" alt="" class="h-16 w-16 object-cover" />
+                          <input class="flex-1 border border-memorial-line px-2 py-1 font-sans text-sm" placeholder="Підпис" [(ngModel)]="item['caption']" (ngModelChange)="markDirty()" />
+                          <button type="button" class="text-xs" (click)="moveItem(block, gi, -1)">Вгору</button>
+                          <button type="button" class="text-xs" (click)="moveItem(block, gi, 1)">Вниз</button>
+                          <button type="button" class="text-xs text-red-700" (click)="removeGalleryItem(block, gi)">Видалити</button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                  @case ('Timeline') {
+                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addEvent(block)">+ Подія</button>
+                    @for (ev of asEvents(block); track ev['id']; let ei = $index) {
+                      <div class="space-y-2 border border-memorial-line p-3">
+                        <div class="flex justify-end gap-1">
+                          <button type="button" class="text-xs" (click)="moveEvent(block, ei, -1)">Вгору</button>
+                          <button type="button" class="text-xs" (click)="moveEvent(block, ei, 1)">Вниз</button>
+                          <button type="button" class="text-xs text-red-700" (click)="removeEvent(block, ei)">Видалити</button>
+                        </div>
+                        <label class="block font-sans text-sm">Дата або період<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="ev['dateOrPeriod']" (ngModelChange)="markDirty()" /></label>
+                        <label class="block font-sans text-sm">Назва<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="ev['title']" (ngModelChange)="markDirty()" /></label>
+                        <label class="block font-sans text-sm">Опис<textarea class="mt-1 w-full border border-memorial-line px-2 py-1" rows="2" [(ngModel)]="ev['description']" (ngModelChange)="markDirty()"></textarea></label>
+                        @if (photoPreview(ev['photo'])) {
+                          <img [src]="photoPreview(ev['photo'])!" alt="" class="h-20" />
+                        }
+                        <label class="inline-block cursor-pointer border border-memorial-line px-2 py-1 font-sans text-xs">
+                          Фото (необов’язково)
+                          <input type="file" accept="image/*" class="hidden" (change)="uploadBlockPhoto(block, $event, { kind: 'event', index: ei })" />
+                        </label>
+                      </div>
+                    }
+                  }
+                  @case ('Awards') {
+                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addAward(block)">+ Нагорода</button>
+                    @for (item of asItems(block); track item['id']; let ai = $index) {
+                      <div class="space-y-2 border border-memorial-line p-3">
+                        <div class="flex justify-end gap-1">
+                          <button type="button" class="text-xs" (click)="moveItem(block, ai, -1)">Вгору</button>
+                          <button type="button" class="text-xs" (click)="moveItem(block, ai, 1)">Вниз</button>
+                          <button type="button" class="text-xs text-red-700" (click)="removeItem(block, ai)">Видалити</button>
+                        </div>
+                        <label class="block font-sans text-sm">Назва<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="item['name']" (ngModelChange)="markDirty()" /></label>
+                        <label class="block font-sans text-sm">Рік або дата<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="item['yearOrDate']" (ngModelChange)="markDirty()" /></label>
+                        <label class="block font-sans text-sm">Опис<textarea class="mt-1 w-full border border-memorial-line px-2 py-1" rows="2" [(ngModel)]="item['description']" (ngModelChange)="markDirty()"></textarea></label>
+                        @if (photoPreview(item['photo'])) {
+                          <img [src]="photoPreview(item['photo'])!" alt="" class="h-20" />
+                        }
+                        <label class="inline-block cursor-pointer border border-memorial-line px-2 py-1 font-sans text-xs">
+                          Фото (необов’язково)
+                          <input type="file" accept="image/*" class="hidden" (change)="uploadBlockPhoto(block, $event, { kind: 'award', index: ai })" />
+                        </label>
+                      </div>
+                    }
+                  }
+                  @case ('Memories') {
+                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addMemory(block)">+ Спогад</button>
+                    @for (item of asItems(block); track item['id']; let mi = $index) {
+                      <div class="space-y-2 border border-memorial-line p-3">
+                        <div class="flex justify-end gap-1">
+                          <button type="button" class="text-xs" (click)="moveItem(block, mi, -1)">Вгору</button>
+                          <button type="button" class="text-xs" (click)="moveItem(block, mi, 1)">Вниз</button>
+                          <button type="button" class="text-xs text-red-700" (click)="removeItem(block, mi)">Видалити</button>
+                        </div>
+                        <label class="block font-sans text-sm">Автор<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="item['author']" (ngModelChange)="markDirty()" /></label>
+                        <label class="block font-sans text-sm">Хто це / опис<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="item['relationOrDescription']" (ngModelChange)="markDirty()" /></label>
+                        <label class="block font-sans text-sm">Текст<textarea class="mt-1 w-full border border-memorial-line px-2 py-1" rows="3" [(ngModel)]="item['text']" (ngModelChange)="markDirty()"></textarea></label>
+                        @if (photoPreview(item['photo'])) {
+                          <img [src]="photoPreview(item['photo'])!" alt="" class="h-20" />
+                        }
+                        <label class="inline-block cursor-pointer border border-memorial-line px-2 py-1 font-sans text-xs">
+                          Фото (необов’язково)
+                          <input type="file" accept="image/*" class="hidden" (change)="uploadBlockPhoto(block, $event, { kind: 'memory', index: mi })" />
+                        </label>
+                      </div>
+                    }
+                  }
+                }
+              </div>
+            }
+          </li>
+        } @empty {
+          <li class="font-sans text-sm text-memorial-muted">Блоків ще немає. Додайте перший блок.</li>
+        }
+      </ul>
+    </section>
+
+    @if (stats) {
+      <section class="border border-memorial-line bg-white p-6">
+        <h2 class="font-serif text-xl">Статистика</h2>
+        <p class="mt-2 font-sans text-sm">Переглядів: {{ stats.totalViews }}</p>
+        <p class="font-sans text-sm text-memorial-muted">Останній перегляд: {{ stats.lastViewedAt || '—' }}</p>
+      </section>
+    }
+    </fieldset>
+  </div>
+} @else {
+  <p class="font-sans text-memorial-muted">Завантаження…</p>
+}
