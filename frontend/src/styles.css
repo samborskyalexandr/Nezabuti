@@ -68,6 +68,12 @@
     will-change: opacity, transform;
   }
 
+  .reveal.is-revealed {
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+
   .reveal-fade-in {
     transform: none;
   }
@@ -79,11 +85,6 @@
 
   .reveal-scale {
     transform: scale(0.985);
-  }
-
-  .reveal.is-revealed {
-    opacity: 1;
-    transform: none;
   }
 
   @media (prefers-reduced-motion: reduce) {

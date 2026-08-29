@@ -36,8 +36,13 @@ export class AdminDashboardPageComponent implements OnInit {
   readonly memorialsLink = adminUrl('memorials');
 
   ngOnInit(): void {
-    this.api.listMemorials({ pageSize: 1 }).subscribe((r) => (this.total = r.total));
-    this.api.listMemorials({ status: 'Published', pageSize: 1 }).subscribe((r) => (this.published = r.total));
-    this.api.listMemorials({ status: 'Archived', pageSize: 1 }).subscribe((r) => (this.archived = r.total));
+    const ignore = { error: () => undefined };
+    this.api.listMemorials({ pageSize: 1 }).subscribe({ next: (r) => (this.total = r.total), ...ignore });
+    this.api
+      .listMemorials({ status: 'Published', pageSize: 1 })
+      .subscribe({ next: (r) => (this.published = r.total), ...ignore });
+    this.api
+      .listMemorials({ status: 'Archived', pageSize: 1 })
+      .subscribe({ next: (r) => (this.archived = r.total), ...ignore });
   }
 }

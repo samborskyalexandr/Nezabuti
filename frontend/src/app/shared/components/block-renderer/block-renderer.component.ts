@@ -107,8 +107,8 @@ import { GalleryComponent } from '../gallery/gallery.component';
               </section>
             }
             @case ('Gallery') {
-              <section appReveal="fade-up">
-                <div class="mx-auto mb-10 max-w-prose">
+              <section>
+                <div class="mx-auto mb-10 max-w-prose" appReveal="fade-up">
                   <h2 class="font-serif text-3xl font-semibold tracking-tight md:text-4xl">Галерея</h2>
                 </div>
                 <app-gallery [items]="galleryItems(block)" />
