@@ -428,6 +428,7 @@ public sealed class MemorialService : IMemorialService
     {
         Id = m.Id,
         PublicId = m.PublicId,
+        PublicUrl = $"{_app.PublicBaseUrl.TrimEnd('/')}/m/{m.PublicId}",
         FullName = m.FullName,
         MainPhoto = m.MainPhoto is null ? null : MapPhoto(m.MainPhoto),
         Status = m.Status,

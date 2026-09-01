@@ -139,6 +139,8 @@ export interface MemorialListItem {
 export interface MemorialAdmin {
   id: string;
   publicId: string;
+  /** Canonical public page URL (same as QR target). */
+  publicUrl?: string;
   fullName: string;
   mainPhoto?: PhotoRef | null;
   status: MemorialStatus;

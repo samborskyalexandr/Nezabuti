@@ -84,6 +84,21 @@ export class AdminMemorialEditorPageComponent implements OnInit {
     return this.memorial ? adminUrl('preview', this.memorial.id) : this.listHref;
   }
 
+  /** Public page URL encoded in the QR code. */
+  get publicPageUrl(): string {
+    const m = this.memorial;
+    if (!m) {
+      return '';
+    }
+    if (m.publicUrl) {
+      return m.publicUrl;
+    }
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return `${window.location.origin}/m/${m.publicId}`;
+    }
+    return `/m/${m.publicId}`;
+  }
+
   get isArchived(): boolean {
     return this.memorial?.status === 'Archived';
   }

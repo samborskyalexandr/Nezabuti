@@ -126,6 +126,8 @@ public class MemorialAdminDto
 {
     public string Id { get; set; } = string.Empty;
     public string PublicId { get; set; } = string.Empty;
+    /// <summary>Canonical public page URL encoded in the QR code.</summary>
+    public string PublicUrl { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public PhotoRefDto? MainPhoto { get; set; }
     public MemorialStatus Status { get; set; }
