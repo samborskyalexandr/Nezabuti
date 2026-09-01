@@ -31,7 +31,13 @@ app.use(
   express.static(browserDistFolder, {
     maxAge: '1y',
     index: false,
-    redirect: false
+    redirect: false,
+    setHeaders: (res, filePath) => {
+      // Favicons are often requested as /favicon.ico without a hash; do not pin for a year.
+      if (/favicon|apple-touch-icon/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+      }
+    }
   })
 );
 
