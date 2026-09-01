@@ -16,8 +16,8 @@ public class PublicSettingsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<SiteSettingsDto>> Get(CancellationToken ct)
+    public async Task<ActionResult<PublicSiteSettingsDto>> Get(CancellationToken ct)
     {
-        return Ok(await _settings.GetAsync(ct));
+        return Ok(await _settings.GetPublicAsync(ct));
     }
 }

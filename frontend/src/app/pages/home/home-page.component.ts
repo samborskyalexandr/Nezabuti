@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { RevealDirective } from '../../shared/directives/reveal.directive';
 import { CanonicalService } from '../../core/services/canonical.service';
 import { ApiService } from '../../core/services/api.service';
-import { SiteSettings } from '../../core/models/memorial.models';
+import { PublicSiteSettings } from '../../core/models/memorial.models';
 import {
   phoneTelHref,
   telegramHref,
@@ -22,7 +22,13 @@ import {
       <header class="absolute inset-x-0 top-0 z-10 px-6 py-6 md:px-10">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-6">
           <a routerLink="/" class="font-serif text-2xl tracking-wide text-memorial-ink">Nezabuti</a>
-          <nav class="font-sans text-sm text-memorial-muted">
+          <nav class="flex gap-5 font-sans text-sm text-memorial-muted">
+            <a
+              routerLink="/plans"
+              class="transition hover:text-memorial-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-memorial-accent"
+            >
+              Плани
+            </a>
             <a
               href="#contacts"
               class="transition hover:text-memorial-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-memorial-accent"
@@ -78,6 +84,23 @@ import {
           Щоб пам’ять була доступною родині, побратимам і наступним поколінням —
           у зручному форматі, з повагою до історії людини.
         </p>
+      </section>
+
+      <section class="border-y border-memorial-line bg-memorial-surface px-6 py-20 md:py-28" appReveal="fade-up">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-serif text-3xl md:text-4xl">Тарифні плани</h2>
+          <p class="mt-5 font-sans text-lg leading-relaxed text-memorial-ink/90">
+            Пам’ять, Історія або Спадщина — оберіть формат сторінки. Створена сторінка залишається з вами назавжди.
+          </p>
+          <div class="mt-8">
+            <a
+              routerLink="/plans"
+              class="inline-block border border-memorial-ink px-6 py-3 font-sans text-sm tracking-wide transition hover:bg-memorial-ink hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-memorial-accent"
+            >
+              Переглянути плани
+            </a>
+          </div>
+        </div>
       </section>
 
       <section id="contacts" class="border-t border-memorial-line bg-memorial-surface px-6 py-20 md:py-28" appReveal="fade-up">
@@ -182,7 +205,7 @@ export class HomePageComponent implements OnInit {
   private readonly document = inject(DOCUMENT);
   private readonly api = inject(ApiService);
 
-  contacts: SiteSettings = { phone: '', telegram: '', viber: '' };
+  contacts: PublicSiteSettings = { phone: '', telegram: '', viber: '' };
   phoneHref: string | null = null;
   telegramUrl: string | null = null;
   viberHref: string | null = null;
@@ -201,7 +224,7 @@ export class HomePageComponent implements OnInit {
     });
   }
 
-  private applyContacts(s: SiteSettings): void {
+  private applyContacts(s: PublicSiteSettings): void {
     this.contacts = {
       phone: (s.phone ?? '').trim(),
       telegram: (s.telegram ?? '').trim(),

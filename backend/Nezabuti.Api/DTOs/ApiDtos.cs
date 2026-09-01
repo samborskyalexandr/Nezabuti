@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using Nezabuti.Api.Models;
 using Nezabuti.Api.Models.Blocks;
+using Nezabuti.Api.Services;
 
 namespace Nezabuti.Api.DTOs;
 
@@ -27,10 +28,28 @@ public class CreateMemorialRequest
     [MaxLength(200)]
     public string FullName { get; set; } = string.Empty;
 
+    [Required]
+    public string PlanId { get; set; } = string.Empty;
+
     public MemorialPrivacy Privacy { get; set; } = MemorialPrivacy.Public;
     public string? Callsign { get; set; }
     public string? LifePeriod { get; set; }
     public string? ShortText { get; set; }
+
+    /// <summary>Optional per-memorial overrides when assigning Custom plan.</summary>
+    public CustomPlanOverridesDto? CustomOverrides { get; set; }
+}
+
+public class CustomPlanOverridesDto
+{
+    public decimal? Price { get; set; }
+    public bool? IsUnlimited { get; set; }
+    public int? MaxBlocks { get; set; }
+    public int? MaxGalleryBlocks { get; set; }
+    public int? MaxPhotosPerGallery { get; set; }
+    public int? MaxTimelineEvents { get; set; }
+    public int? MaxMemories { get; set; }
+    public int? IncludedUpdates { get; set; }
 }
 
 /// <summary>
@@ -48,7 +67,21 @@ public class UpdateMemorialRequest
     public string? LifePeriod { get; set; }
     public string? ShortText { get; set; }
     public string? MainPhotoId { get; set; }
+    public QrPlateSize? QrPlateSize { get; set; }
+
+    /// <summary>
+    /// When set, updates FinalPrice. Use with IsFinalPriceOverridden.
+    /// </summary>
+    public decimal? FinalPrice { get; set; }
+
+    public bool? IsFinalPriceOverridden { get; set; }
+
     public List<MemorialBlockDto> Blocks { get; set; } = [];
+}
+
+public class UpdatePaymentRequest
+{
+    public PaymentStatus PaymentStatus { get; set; }
 }
 
 public class MemorialBlockDto
@@ -83,6 +116,10 @@ public class MemorialListItemDto
     public DateTime? ArchivedAt { get; set; }
     public string? MainPhotoPreviewUrl { get; set; }
     public string? MainPhotoThumbUrl { get; set; }
+    public string? PlanName { get; set; }
+    public string? PlanCode { get; set; }
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
+    public decimal? FinalPrice { get; set; }
 }
 
 public class MemorialAdminDto
@@ -101,6 +138,98 @@ public class MemorialAdminDto
     public DateTime UpdatedAt { get; set; }
     public DateTime? PublishedAt { get; set; }
     public DateTime? ArchivedAt { get; set; }
+    public PlanSnapshotDto? PlanSnapshot { get; set; }
+    public int UsedUpdates { get; set; }
+    public QrPlateSize QrPlateSize { get; set; } = QrPlateSize.Size50;
+    public decimal QrPriceDeltaSnapshot { get; set; }
+    public decimal? CalculatedPrice { get; set; }
+    public decimal? FinalPrice { get; set; }
+    public bool IsFinalPriceOverridden { get; set; }
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
+    public DateTime? PaidAt { get; set; }
+    public PlanUsageDto? Usage { get; set; }
+}
+
+public class PlanSnapshotDto
+{
+    public string PlanId { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public bool IsCustom { get; set; }
+    public bool IsUnlimited { get; set; }
+    public int? MaxBlocks { get; set; }
+    public int? MaxGalleryBlocks { get; set; }
+    public int? MaxPhotosPerGallery { get; set; }
+    public int? MaxTimelineEvents { get; set; }
+    public int? MaxMemories { get; set; }
+    public int IncludedUpdates { get; set; }
+    public DateTime SnapshotAt { get; set; }
+}
+
+public class PlanDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal Price { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsCustom { get; set; }
+    public bool IsUnlimited { get; set; }
+    public int? MaxBlocks { get; set; }
+    public int? MaxGalleryBlocks { get; set; }
+    public int? MaxPhotosPerGallery { get; set; }
+    public int? MaxTimelineEvents { get; set; }
+    public int? MaxMemories { get; set; }
+    public int IncludedUpdates { get; set; }
+}
+
+public class UpdatePlanRequest
+{
+    [Required]
+    [MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+    public decimal Price { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsUnlimited { get; set; }
+    public int? MaxBlocks { get; set; }
+    public int? MaxGalleryBlocks { get; set; }
+    public int? MaxPhotosPerGallery { get; set; }
+    public int? MaxTimelineEvents { get; set; }
+    public int? MaxMemories { get; set; }
+    public int IncludedUpdates { get; set; }
+}
+
+public class AssignPlanRequest
+{
+    [Required]
+    public string PlanId { get; set; } = string.Empty;
+
+    public CustomPlanOverridesDto? CustomOverrides { get; set; }
+}
+
+public class AdjustUpdatesRequest
+{
+    /// <summary>+1 or -1</summary>
+    [Range(-1, 1)]
+    public int Delta { get; set; }
+}
+
+public class PublicPlanDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal Price { get; set; }
+    public int? MaxGalleryBlocks { get; set; }
+    public int? MaxPhotosPerGallery { get; set; }
+    public int? MaxTimelineEvents { get; set; }
+    public int? MaxMemories { get; set; }
+    public int IncludedUpdates { get; set; }
+    public bool IsRecommended { get; set; }
 }
 
 public class PhotoRefDto
@@ -178,6 +307,18 @@ public class SiteSettingsDto
     public string Phone { get; set; } = string.Empty;
     public string Telegram { get; set; } = string.Empty;
     public string Viber { get; set; } = string.Empty;
+    public decimal AdditionalUpdatePrice { get; set; }
+    public decimal QrSize50PriceDelta { get; set; }
+    public decimal QrSize75PriceDelta { get; set; }
+    public decimal QrSize100PriceDelta { get; set; }
+    public int ShortTextMaxChars { get; set; }
+    public int TextBlockMaxChars { get; set; }
+    public int QuoteMaxChars { get; set; }
+    public int TimelineDescriptionMaxChars { get; set; }
+    public int MemoryTextMaxChars { get; set; }
+    public int ServiceDescriptionMaxChars { get; set; }
+    public int AwardDescriptionMaxChars { get; set; }
+    public int PhotoCaptionMaxChars { get; set; }
 }
 
 public class UpdateSiteSettingsRequest
@@ -185,4 +326,23 @@ public class UpdateSiteSettingsRequest
     public string? Phone { get; set; }
     public string? Telegram { get; set; }
     public string? Viber { get; set; }
+    public decimal? AdditionalUpdatePrice { get; set; }
+    public decimal? QrSize50PriceDelta { get; set; }
+    public decimal? QrSize75PriceDelta { get; set; }
+    public decimal? QrSize100PriceDelta { get; set; }
+    public int? ShortTextMaxChars { get; set; }
+    public int? TextBlockMaxChars { get; set; }
+    public int? QuoteMaxChars { get; set; }
+    public int? TimelineDescriptionMaxChars { get; set; }
+    public int? MemoryTextMaxChars { get; set; }
+    public int? ServiceDescriptionMaxChars { get; set; }
+    public int? AwardDescriptionMaxChars { get; set; }
+    public int? PhotoCaptionMaxChars { get; set; }
+}
+
+public class PublicSiteSettingsDto
+{
+    public string Phone { get; set; } = string.Empty;
+    public string Telegram { get; set; } = string.Empty;
+    public string Viber { get; set; } = string.Empty;
 }

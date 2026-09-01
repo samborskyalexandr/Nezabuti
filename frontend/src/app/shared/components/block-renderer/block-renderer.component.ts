@@ -19,16 +19,16 @@ import { GalleryComponent } from '../gallery/gallery.component';
               </section>
             }
             @case ('Quote') {
-              <section class="mx-auto max-w-prose py-4" appReveal="fade-up">
+              <section class="mx-auto max-w-prose py-6 md:py-10" appReveal="fade-up">
                 <blockquote class="text-center">
-                  <p class="font-serif text-[1.65rem] font-medium leading-snug text-memorial-ink sm:text-3xl md:text-[2.15rem] md:leading-snug">
-                    {{ asText(block, 'text') }}
+                  <p class="whitespace-pre-line font-serif text-[1.75rem] font-medium italic leading-snug text-memorial-ink sm:text-3xl md:text-[2.35rem] md:leading-snug">
+                    «{{ asText(block, 'text') }}»
                   </p>
                   @if (asText(block, 'author')) {
-                    <footer class="mt-8 font-sans text-sm text-memorial-muted">
+                    <footer class="mt-10 font-sans text-sm tracking-wide text-memorial-muted/90">
                       <span>{{ asText(block, 'author') }}</span>
                       @if (asText(block, 'authorDescription')) {
-                        <span class="block mt-1 text-memorial-muted/80">{{ asText(block, 'authorDescription') }}</span>
+                        <span class="mt-1.5 block text-memorial-muted/70">{{ asText(block, 'authorDescription') }}</span>
                       }
                     </footer>
                   }
@@ -134,19 +134,10 @@ import { GalleryComponent } from '../gallery/gallery.component';
             }
             @case ('Awards') {
               <section class="mx-auto max-w-prose" appReveal="fade-up">
-                <h2 class="font-serif text-3xl font-semibold tracking-tight md:text-4xl">Нагороди</h2>
+                <h2 class="font-serif text-3xl font-semibold tracking-tight md:text-4xl">Відзнаки та нагороди</h2>
                 <ul class="mt-12 space-y-12">
                   @for (item of asArray(block, 'items'); track $index) {
-                    <li class="flex flex-col gap-5 sm:flex-row sm:gap-8">
-                      @if (photoPreview(item['photo'])) {
-                        <img
-                          [src]="photoPreview(item['photo'])!"
-                          [alt]="asAlt(item['name'], 'Нагорода')"
-                          class="h-28 w-28 shrink-0 object-cover sm:h-32 sm:w-32"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      }
+                    <li>
                       <div class="min-w-0">
                         <h3 class="font-serif text-2xl font-semibold leading-snug">{{ item['name'] }}</h3>
                         @if (item['yearOrDate']) {

@@ -8,6 +8,10 @@
           PublicId: <strong class="text-memorial-ink">{{ memorial.publicId }}</strong>
           <span class="mx-1">·</span>
           Статус: {{ statusLabels[memorial.status] }}
+          @if (memorial.planSnapshot) {
+            <span class="mx-1">·</span>
+            План: {{ memorial.planSnapshot.name }}
+          }
           @if (dirty) {
             <span class="ml-2 text-amber-800">• є незбережені зміни</span>
           }
@@ -61,6 +65,156 @@
     }
 
     <fieldset class="min-w-0 space-y-8 border-0 p-0 disabled:opacity-75" [disabled]="isArchived">
+    <!-- Plan & usage -->
+    <section class="space-y-4 border border-memorial-line bg-white p-6">
+      <h2 class="font-serif text-xl">План і використання</h2>
+      @if (liveUsage(); as usage) {
+        <ul class="grid gap-2 font-sans text-sm sm:grid-cols-2">
+          <li>Блоки: {{ usageLabel(usage.blocksUsed, usage.maxBlocks) }}</li>
+          <li>Галереї: {{ usageLabel(usage.galleriesUsed, usage.maxGalleryBlocks) }}</li>
+          <li>Події шляху: {{ usageLabel(usage.timelineEventsUsed, usage.maxTimelineEvents) }}</li>
+          <li>Спогади: {{ usageLabel(usage.memoriesUsed, usage.maxMemories) }}</li>
+        </ul>
+        @if (usage.galleries.length) {
+          <ul class="mt-3 space-y-1 font-sans text-sm text-memorial-muted">
+            @for (g of usage.galleries; track g.blockId; let gi = $index) {
+              <li>Галерея {{ gi + 1 }} — фото: {{ usageLabel(g.photosUsed, g.maxPhotosPerGallery) }}</li>
+            }
+          </ul>
+        }
+      }
+
+      <div class="flex flex-wrap items-center gap-3 font-sans text-sm">
+        <span>Оновлення: {{ memorial.usedUpdates }} / {{ memorial.planSnapshot?.includedUpdates ?? 0 }}</span>
+        <button type="button" class="border border-memorial-line px-2 py-1 text-xs" [disabled]="updatesBusy" (click)="adjustUpdates(-1)">−1</button>
+        <button type="button" class="border border-memorial-line px-2 py-1 text-xs" [disabled]="updatesBusy" (click)="adjustUpdates(1)">+1</button>
+      </div>
+      @if (showExtraUpdatePrice && settings) {
+        <p class="font-sans text-sm text-amber-900">
+          Ліміт включених оновлень вичерпано. Додаткове оновлення: {{ settings.additionalUpdatePrice | number:'1.0-0' }} ₴
+        </p>
+      }
+
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="block font-sans text-sm">
+          Змінити план
+          <select class="mt-1 block border border-memorial-line px-3 py-2" [(ngModel)]="assignPlanId" name="assignPlanId">
+            @for (p of plans; track p.id) {
+              <option [value]="p.id">{{ p.name }} ({{ p.price | number:'1.0-0' }} ₴)</option>
+            }
+          </select>
+        </label>
+        <button
+          type="button"
+          class="border border-memorial-ink px-3 py-2 font-sans text-sm disabled:opacity-50"
+          [disabled]="planBusy || !assignPlanId"
+          (click)="assignPlan()"
+        >
+          {{ planBusy ? 'Зміна…' : 'Застосувати план' }}
+        </button>
+      </div>
+
+      <label class="block font-sans text-sm max-w-xs">
+        Розмір QR-таблички
+        <select
+          class="mt-1 w-full border border-memorial-line px-3 py-2"
+          [ngModel]="memorial.qrPlateSize"
+          name="qrPlateSize"
+          (ngModelChange)="onQrSizeChange($event)"
+        >
+          @for (size of qrSizes; track size) {
+            <option [ngValue]="size">{{ qrLabels[size] }}</option>
+          }
+        </select>
+      </label>
+      @if (settings) {
+        <p class="font-sans text-xs text-memorial-muted">
+          Доплата за розмір (поточні налаштування):
+          50 мм — {{ settings.qrSize50PriceDelta | number:'1.0-0' }} ₴ ·
+          75 мм — {{ settings.qrSize75PriceDelta | number:'1.0-0' }} ₴ ·
+          100 мм — {{ settings.qrSize100PriceDelta | number:'1.0-0' }} ₴
+        </p>
+      }
+    </section>
+
+    <!-- Payment -->
+    <section class="space-y-4 border border-memorial-line bg-white p-6">
+      <h2 class="font-serif text-xl">Оплата</h2>
+      <dl class="grid gap-2 font-sans text-sm sm:grid-cols-2">
+        <div>
+          <dt class="text-memorial-muted">План</dt>
+          <dd>{{ memorial.planSnapshot?.name || '—' }}</dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Вартість плану</dt>
+          <dd>{{ moneyLabel(memorial.planSnapshot?.price) }}</dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Розмір QR-таблички</dt>
+          <dd>QR {{ qrLabels[memorial.qrPlateSize] }}: +{{ liveQrDelta | number:'1.0-0' }} грн</dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Доплата за QR</dt>
+          <dd>{{ moneyLabel(liveQrDelta) }}</dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Розрахункова вартість</dt>
+          <dd>{{ moneyLabel(liveCalculatedPrice) }}</dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Фінальна вартість</dt>
+          <dd class="flex flex-wrap items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              class="w-32 border border-memorial-line px-2 py-1"
+              [ngModel]="finalPriceDraft"
+              name="finalPriceDraft"
+              (ngModelChange)="onFinalPriceChange($event)"
+            />
+            <span>грн</span>
+            @if (memorial.isFinalPriceOverridden) {
+              <span class="text-xs text-amber-900">(змінено вручну)</span>
+            }
+          </dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="text-memorial-muted">Статус</dt>
+          <dd>
+            {{ paymentLabels[memorial.paymentStatus] }}
+            @if (memorial.paymentStatus === 'Paid' && memorial.paidAt) {
+              <span class="text-memorial-muted"> · {{ memorial.paidAt | date:'dd.MM.yyyy HH:mm' }}</span>
+            }
+          </dd>
+        </div>
+      </dl>
+      <div class="flex flex-wrap gap-2">
+        @if (memorial.paymentStatus !== 'Paid') {
+          <button
+            type="button"
+            class="border border-memorial-ink px-3 py-2 font-sans text-sm disabled:opacity-50"
+            [disabled]="paymentBusy"
+            (click)="markPaid()"
+          >
+            Позначити як оплачено
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="border border-memorial-line px-3 py-2 font-sans text-sm disabled:opacity-50"
+            [disabled]="paymentBusy"
+            (click)="markUnpaid()"
+          >
+            Позначити як неоплачений
+          </button>
+        }
+      </div>
+      <p class="font-sans text-xs text-memorial-muted">
+        Зміна фінальної вартості зберігається кнопкою «Зберегти». Статус оплати оновлюється одразу.
+      </p>
+    </section>
+
     <!-- Main info -->
     <section class="space-y-4 border border-memorial-line bg-white p-6">
       <h2 class="font-serif text-xl">Основна інформація</h2>
@@ -135,7 +289,14 @@
       @if (showAddBlock) {
         <div class="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
           @for (type of blockTypes; track type) {
-            <button type="button" class="border border-memorial-line px-3 py-2 text-left font-sans text-sm hover:bg-[#FAFAF8]" (click)="addBlock(type)">
+            @let check = canAddBlock(type);
+            <button
+              type="button"
+              class="border border-memorial-line px-3 py-2 text-left font-sans text-sm hover:bg-[#FAFAF8] disabled:cursor-not-allowed disabled:opacity-40"
+              [disabled]="!check.ok"
+              [title]="check.error || ''"
+              (click)="addBlock(type)"
+            >
               {{ blockTypeLabels[type] }}
             </button>
           }
@@ -143,7 +304,7 @@
       }
 
       <ul class="space-y-3">
-        @for (block of memorial.blocks; track block.id; let i = $index) {
+        @for (block of blocks(); track block.id; let i = $index) {
           <li class="border border-memorial-line">
             <div class="flex flex-wrap items-center justify-between gap-2 bg-[#FAFAF8] px-3 py-2">
               <button type="button" class="font-sans text-sm" (click)="toggleBlock(block.id)">
@@ -191,9 +352,15 @@
                     <label class="block font-sans text-sm">Підпис<input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="block.data['caption']" (ngModelChange)="markDirty()" /></label>
                   }
                   @case ('Gallery') {
-                    <label class="inline-block cursor-pointer border border-memorial-line px-3 py-2 font-sans text-sm">
+                    @let galCheck = canAddGalleryPhoto(block);
+                    <label
+                      class="inline-block border border-memorial-line px-3 py-2 font-sans text-sm"
+                      [class.cursor-pointer]="galCheck.ok"
+                      [class.opacity-40]="!galCheck.ok"
+                      [title]="galCheck.error || ''"
+                    >
                       + Додати фото
-                      <input type="file" accept="image/*" class="hidden" (change)="uploadBlockPhoto(block, $event, 'gallery')" />
+                      <input type="file" accept="image/*" class="hidden" [disabled]="!galCheck.ok" (change)="uploadBlockPhoto(block, $event, 'gallery')" />
                     </label>
                     <ul class="space-y-3">
                       @for (item of asItems(block); track item['photoId']; let gi = $index) {
@@ -208,7 +375,16 @@
                     </ul>
                   }
                   @case ('Timeline') {
-                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addEvent(block)">+ Подія</button>
+                    @let evCheck = canAddTimelineEvent();
+                    <button
+                      type="button"
+                      class="border border-memorial-line px-3 py-1 font-sans text-sm disabled:opacity-40"
+                      [disabled]="!evCheck.ok"
+                      [title]="evCheck.error || ''"
+                      (click)="addEvent(block)"
+                    >
+                      + Подія
+                    </button>
                     @for (ev of asEvents(block); track ev['id']; let ei = $index) {
                       <div class="space-y-2 border border-memorial-line p-3">
                         <div class="flex justify-end gap-1">
@@ -230,7 +406,7 @@
                     }
                   }
                   @case ('Awards') {
-                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addAward(block)">+ Нагорода</button>
+                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addAward(block)">+ Відзнака</button>
                     @for (item of asItems(block); track item['id']; let ai = $index) {
                       <div class="space-y-2 border border-memorial-line p-3">
                         <div class="flex justify-end gap-1">
@@ -241,18 +417,20 @@
                         <label class="block font-sans text-sm">Назва<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="item['name']" (ngModelChange)="markDirty()" /></label>
                         <label class="block font-sans text-sm">Рік або дата<input class="mt-1 w-full border border-memorial-line px-2 py-1" [(ngModel)]="item['yearOrDate']" (ngModelChange)="markDirty()" /></label>
                         <label class="block font-sans text-sm">Опис<textarea class="mt-1 w-full border border-memorial-line px-2 py-1" rows="2" [(ngModel)]="item['description']" (ngModelChange)="markDirty()"></textarea></label>
-                        @if (photoPreview(item['photo'])) {
-                          <img [src]="photoPreview(item['photo'])!" alt="" class="h-20" />
-                        }
-                        <label class="inline-block cursor-pointer border border-memorial-line px-2 py-1 font-sans text-xs">
-                          Фото (необов’язково)
-                          <input type="file" accept="image/*" class="hidden" (change)="uploadBlockPhoto(block, $event, { kind: 'award', index: ai })" />
-                        </label>
                       </div>
                     }
                   }
                   @case ('Memories') {
-                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addMemory(block)">+ Спогад</button>
+                    @let memCheck = canAddMemory();
+                    <button
+                      type="button"
+                      class="border border-memorial-line px-3 py-1 font-sans text-sm disabled:opacity-40"
+                      [disabled]="!memCheck.ok"
+                      [title]="memCheck.error || ''"
+                      (click)="addMemory(block)"
+                    >
+                      + Спогад
+                    </button>
                     @for (item of asItems(block); track item['id']; let mi = $index) {
                       <div class="space-y-2 border border-memorial-line p-3">
                         <div class="flex justify-end gap-1">

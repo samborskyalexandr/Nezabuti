@@ -15,6 +15,9 @@ public interface IMemorialService
     Task<PagedResult<MemorialListItemDto>> ListAsync(string? search, MemorialStatus? status, int page, int pageSize, CancellationToken ct = default);
     Task<MemorialAdminDto?> GetAdminAsync(string id, CancellationToken ct = default);
     Task<MemorialAdminDto?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default);
+    Task<MemorialAdminDto?> AssignPlanAsync(string id, AssignPlanRequest request, CancellationToken ct = default);
+    Task<MemorialAdminDto?> AdjustUpdatesAsync(string id, AdjustUpdatesRequest request, CancellationToken ct = default);
+    Task<MemorialAdminDto?> UpdatePaymentAsync(string id, UpdatePaymentRequest request, CancellationToken ct = default);
     Task<MemorialAdminDto?> ReorderBlocksAsync(string id, ReorderBlocksRequest request, CancellationToken ct = default);
     Task<MemorialAdminDto?> PublishAsync(string id, CancellationToken ct = default);
     Task<MemorialAdminDto?> ArchiveAsync(string id, CancellationToken ct = default);
@@ -31,23 +34,57 @@ public sealed class MemorialService : IMemorialService
     private readonly IMemorialRepository _repo;
     private readonly IPhotoService _photos;
     private readonly IStatisticsService _stats;
+    private readonly IPlanRepository _plans;
+    private readonly IPlanLimitService _planLimits;
+    private readonly ISiteSettingsRepository _settings;
     private readonly AppPublicSettings _app;
 
     public MemorialService(
         IMemorialRepository repo,
         IPhotoService photos,
         IStatisticsService stats,
+        IPlanRepository plans,
+        IPlanLimitService planLimits,
+        ISiteSettingsRepository settings,
         IOptions<AppPublicSettings> app)
     {
         _repo = repo;
         _photos = photos;
         _stats = stats;
+        _plans = plans;
+        _planLimits = planLimits;
+        _settings = settings;
         _app = app.Value;
     }
 
     public async Task<MemorialAdminDto> CreateAsync(CreateMemorialRequest request, CancellationToken ct = default)
     {
-        var memorial = await _repo.CreateAsync(request, ct);
+        if (string.IsNullOrWhiteSpace(request.PlanId))
+        {
+            throw new InvalidOperationException("Потрібно обрати тарифний план.");
+        }
+
+        var plan = await _plans.GetByIdAsync(request.PlanId.Trim(), ct);
+        if (plan is null || !plan.IsActive)
+        {
+            throw new InvalidOperationException("Обраний план недоступний.");
+        }
+
+        var snapshot = _planLimits.CreateSnapshot(plan);
+        if (plan.IsCustom && request.CustomOverrides is not null)
+        {
+            _planLimits.ApplyCustomOverrides(snapshot, request.CustomOverrides);
+        }
+
+        var memorial = await _repo.CreateAsync(request, snapshot, ct);
+        var settings = await _settings.GetAsync(ct);
+        memorial.QrPriceDeltaSnapshot = MemorialPricing.GetQrPriceDelta(settings, memorial.QrPlateSize);
+        memorial.FinalPrice = MemorialPricing.CalculatePrice(snapshot.Price, memorial.QrPriceDeltaSnapshot);
+        memorial.IsFinalPriceOverridden = false;
+        memorial.PaymentStatus = PaymentStatus.Unpaid;
+        memorial.PaidAt = null;
+        await _repo.ReplaceAsync(memorial, ct);
+
         await _stats.EnsureExistsAsync(memorial, ct);
         return MapAdmin(memorial);
     }
@@ -77,7 +114,129 @@ public sealed class MemorialService : IMemorialService
 
     public async Task<MemorialAdminDto?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default)
     {
+        var existing = await _repo.GetByIdAsync(id, ct);
+        if (existing is null)
+        {
+            return null;
+        }
+
+        var previousQrSize = existing.QrPlateSize;
+        var settings = await _settings.GetAsync(ct);
+
+        if (request.FinalPrice.HasValue && request.FinalPrice.Value < 0)
+        {
+            throw new InvalidOperationException("Фінальна вартість не може бути від'ємною.");
+        }
+
         var memorial = await _repo.UpdateAsync(id, request, ct);
+        if (memorial is null)
+        {
+            return null;
+        }
+
+        var qrChanged = request.QrPlateSize.HasValue && request.QrPlateSize.Value != previousQrSize;
+        if (qrChanged)
+        {
+            memorial.QrPriceDeltaSnapshot = MemorialPricing.GetQrPriceDelta(settings, memorial.QrPlateSize);
+            if (!memorial.IsFinalPriceOverridden && memorial.PlanSnapshot is not null)
+            {
+                memorial.FinalPrice = MemorialPricing.CalculatePrice(
+                    memorial.PlanSnapshot.Price,
+                    memorial.QrPriceDeltaSnapshot);
+            }
+
+            await _repo.ReplaceAsync(memorial, ct);
+        }
+        else if (request.IsFinalPriceOverridden == true && request.FinalPrice.HasValue)
+        {
+            // already persisted in UpdateAsync
+        }
+        else if (request.IsFinalPriceOverridden == false
+                 && memorial.PlanSnapshot is not null
+                 && !request.FinalPrice.HasValue)
+        {
+            memorial.FinalPrice = MemorialPricing.CalculatePrice(
+                memorial.PlanSnapshot.Price,
+                memorial.QrPriceDeltaSnapshot);
+            await _repo.ReplaceAsync(memorial, ct);
+        }
+
+        if (memorial.PlanSnapshot is not null)
+        {
+            var (ok, error) = _planLimits.ValidateMemorialAgainstPlan(memorial, memorial.PlanSnapshot);
+            if (!ok)
+            {
+                await RestorePreviousAsync(existing, ct);
+                throw new InvalidOperationException(error ?? "Меморіал не відповідає лімітам плану.");
+            }
+        }
+
+        var contentCheck = ContentLimitValidator.Validate(memorial, settings);
+        if (!contentCheck.Ok)
+        {
+            await RestorePreviousAsync(existing, ct);
+            throw new InvalidOperationException(contentCheck.Error ?? "Перевищено технічні ліміти вмісту.");
+        }
+
+        return MapAdmin(memorial);
+    }
+
+    public async Task<MemorialAdminDto?> AssignPlanAsync(string id, AssignPlanRequest request, CancellationToken ct = default)
+    {
+        var memorial = await _repo.GetByIdAsync(id, ct);
+        if (memorial is null)
+        {
+            return null;
+        }
+
+        var plan = await _plans.GetByIdAsync(request.PlanId.Trim(), ct);
+        if (plan is null || !plan.IsActive)
+        {
+            throw new InvalidOperationException("Обраний план недоступний.");
+        }
+
+        var snapshot = _planLimits.CreateSnapshot(plan);
+        if (plan.IsCustom && request.CustomOverrides is not null)
+        {
+            _planLimits.ApplyCustomOverrides(snapshot, request.CustomOverrides);
+        }
+
+        var (ok, error) = _planLimits.ValidateMemorialAgainstPlan(memorial, snapshot);
+        if (!ok)
+        {
+            throw new InvalidOperationException(error ?? "Поточний вміст не вміщується в новий план.");
+        }
+
+        memorial = await _repo.UpdatePlanSnapshotAsync(id, snapshot, ct);
+        if (memorial is null)
+        {
+            return null;
+        }
+
+        if (!memorial.IsFinalPriceOverridden)
+        {
+            memorial.FinalPrice = MemorialPricing.CalculatePrice(snapshot.Price, memorial.QrPriceDeltaSnapshot);
+            await _repo.ReplaceAsync(memorial, ct);
+        }
+
+        return MapAdmin(memorial);
+    }
+
+    public async Task<MemorialAdminDto?> AdjustUpdatesAsync(string id, AdjustUpdatesRequest request, CancellationToken ct = default)
+    {
+        if (request.Delta is not (1 or -1))
+        {
+            throw new InvalidOperationException("Зміна лічильника оновлень дозволена лише на +1 або −1.");
+        }
+
+        var memorial = await _repo.AdjustUsedUpdatesAsync(id, request.Delta, ct);
+        return memorial is null ? null : MapAdmin(memorial);
+    }
+
+    public async Task<MemorialAdminDto?> UpdatePaymentAsync(string id, UpdatePaymentRequest request, CancellationToken ct = default)
+    {
+        DateTime? paidAt = request.PaymentStatus == PaymentStatus.Paid ? DateTime.UtcNow : null;
+        var memorial = await _repo.UpdatePaymentAsync(id, request.PaymentStatus, paidAt, ct);
         return memorial is null ? null : MapAdmin(memorial);
     }
 
@@ -117,11 +276,6 @@ public sealed class MemorialService : IMemorialService
             return null;
         }
 
-        if (memorial.Status == MemorialStatus.Draft)
-        {
-            // Draft can be archived as well for soft-removal path to permanent delete
-        }
-
         memorial = await _repo.SetStatusAsync(id, MemorialStatus.Archived, ct);
         return memorial is null ? null : MapAdmin(memorial);
     }
@@ -139,7 +293,6 @@ public sealed class MemorialService : IMemorialService
             throw new InvalidOperationException("Відновити можна лише архівні меморіали.");
         }
 
-        // Restore to Draft; admin can publish again when ready
         memorial = await _repo.SetStatusAsync(id, MemorialStatus.Draft, ct);
         return memorial is null ? null : MapAdmin(memorial);
     }
@@ -229,6 +382,28 @@ public sealed class MemorialService : IMemorialService
         return (true, null);
     }
 
+    private async Task RestorePreviousAsync(Memorial previous, CancellationToken ct)
+    {
+        var restoreRequest = new UpdateMemorialRequest
+        {
+            FullName = previous.FullName,
+            Privacy = previous.Privacy,
+            Callsign = previous.Callsign,
+            LifePeriod = previous.LifePeriod,
+            ShortText = previous.ShortText,
+            MainPhotoId = previous.MainPhoto?.PhotoId,
+            QrPlateSize = previous.QrPlateSize,
+            FinalPrice = previous.FinalPrice,
+            IsFinalPriceOverridden = previous.IsFinalPriceOverridden,
+            Blocks = previous.Blocks.OrderBy(b => b.Order).Select(MapBlock).ToList()
+        };
+        await _repo.UpdateAsync(previous.Id, restoreRequest, ct);
+
+        // Restore payment/pricing fields that UpdateAsync may not fully revert for QR delta.
+        previous.UpdatedAt = DateTime.UtcNow;
+        await _repo.ReplaceAsync(previous, ct);
+    }
+
     private MemorialListItemDto MapListItem(Memorial m) => new()
     {
         Id = m.Id,
@@ -242,7 +417,11 @@ public sealed class MemorialService : IMemorialService
         ArchivedAt = m.ArchivedAt,
         MainPhotoPreviewUrl = m.MainPhoto is null ? null : ToMediaUrl(m.MainPhoto.PreviewPath),
         MainPhotoThumbUrl = m.MainPhoto is null ? null : ToMediaUrl(
-            string.IsNullOrWhiteSpace(m.MainPhoto.ThumbPath) ? m.MainPhoto.PreviewPath : m.MainPhoto.ThumbPath)
+            string.IsNullOrWhiteSpace(m.MainPhoto.ThumbPath) ? m.MainPhoto.PreviewPath : m.MainPhoto.ThumbPath),
+        PlanName = m.PlanSnapshot?.Name,
+        PlanCode = m.PlanSnapshot?.Code,
+        PaymentStatus = m.PaymentStatus,
+        FinalPrice = MemorialPricing.ResolveFinalPrice(m)
     };
 
     private MemorialAdminDto MapAdmin(Memorial m) => new()
@@ -260,7 +439,34 @@ public sealed class MemorialService : IMemorialService
         CreatedAt = m.CreatedAt,
         UpdatedAt = m.UpdatedAt,
         PublishedAt = m.PublishedAt,
-        ArchivedAt = m.ArchivedAt
+        ArchivedAt = m.ArchivedAt,
+        PlanSnapshot = m.PlanSnapshot is null ? null : MapSnapshot(m.PlanSnapshot),
+        UsedUpdates = m.UsedUpdates,
+        QrPlateSize = m.QrPlateSize,
+        QrPriceDeltaSnapshot = m.QrPriceDeltaSnapshot,
+        CalculatedPrice = MemorialPricing.ResolveCalculatedPrice(m),
+        FinalPrice = MemorialPricing.ResolveFinalPrice(m),
+        IsFinalPriceOverridden = m.IsFinalPriceOverridden,
+        PaymentStatus = m.PaymentStatus,
+        PaidAt = m.PaidAt,
+        Usage = _planLimits.GetUsage(m)
+    };
+
+    private static PlanSnapshotDto MapSnapshot(PlanSnapshot s) => new()
+    {
+        PlanId = s.PlanId,
+        Code = s.Code,
+        Name = s.Name,
+        Price = s.Price,
+        IsCustom = s.IsCustom,
+        IsUnlimited = s.IsUnlimited,
+        MaxBlocks = s.MaxBlocks,
+        MaxGalleryBlocks = s.MaxGalleryBlocks,
+        MaxPhotosPerGallery = s.MaxPhotosPerGallery,
+        MaxTimelineEvents = s.MaxTimelineEvents,
+        MaxMemories = s.MaxMemories,
+        IncludedUpdates = s.IncludedUpdates,
+        SnapshotAt = s.SnapshotAt
     };
 
     private PublicMemorialDto MapPublic(Memorial m, bool includeEmptyBlocks = false, bool forAdminPreview = false)

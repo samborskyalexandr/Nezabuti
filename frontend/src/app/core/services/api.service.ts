@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  CustomPlanOverrides,
   LoginResponse,
   MemorialAdmin,
   MemorialListItem,
@@ -9,7 +10,11 @@ import {
   MemorialStatus,
   PagedResult,
   PhotoRef,
+  Plan,
   PublicMemorial,
+  PublicPlan,
+  PublicSiteSettings,
+  QrPlateSize,
   SiteSettings
 } from '../models/memorial.models';
 
@@ -55,8 +60,24 @@ export class ApiService {
     return this.http.get<PublicMemorial>(`/api/admin/memorials/${id}/preview`);
   }
 
-  createMemorial(fullName: string): Observable<MemorialAdmin> {
-    return this.http.post<MemorialAdmin>('/api/admin/memorials', { fullName, privacy: 'Public' });
+  createMemorial(body: {
+    fullName: string;
+    planId: string;
+    privacy?: string;
+    callsign?: string | null;
+    lifePeriod?: string | null;
+    shortText?: string | null;
+    customOverrides?: CustomPlanOverrides | null;
+  }): Observable<MemorialAdmin> {
+    return this.http.post<MemorialAdmin>('/api/admin/memorials', {
+      fullName: body.fullName,
+      planId: body.planId,
+      privacy: body.privacy ?? 'Public',
+      callsign: body.callsign,
+      lifePeriod: body.lifePeriod,
+      shortText: body.shortText,
+      customOverrides: body.customOverrides ?? undefined
+    });
   }
 
   updateMemorial(
@@ -68,10 +89,28 @@ export class ApiService {
       lifePeriod?: string | null;
       shortText?: string | null;
       mainPhotoId?: string | null;
+      qrPlateSize?: QrPlateSize | null;
+      finalPrice?: number | null;
+      isFinalPriceOverridden?: boolean | null;
       blocks: { id?: string; type: string; order: number; data: Record<string, unknown> }[];
     }
   ): Observable<MemorialAdmin> {
     return this.http.put<MemorialAdmin>(`/api/admin/memorials/${id}`, body);
+  }
+
+  updatePayment(id: string, paymentStatus: 'Unpaid' | 'Paid'): Observable<MemorialAdmin> {
+    return this.http.put<MemorialAdmin>(`/api/admin/memorials/${id}/payment`, { paymentStatus });
+  }
+
+  assignPlan(
+    id: string,
+    body: { planId: string; customOverrides?: CustomPlanOverrides | null }
+  ): Observable<MemorialAdmin> {
+    return this.http.put<MemorialAdmin>(`/api/admin/memorials/${id}/plan`, body);
+  }
+
+  adjustUpdates(id: string, delta: 1 | -1): Observable<MemorialAdmin> {
+    return this.http.post<MemorialAdmin>(`/api/admin/memorials/${id}/updates`, { delta });
   }
 
   publish(id: string): Observable<MemorialAdmin> {
@@ -118,15 +157,42 @@ export class ApiService {
     return this.http.get<MemorialStatistics>(`/api/admin/memorials/${id}/statistics`);
   }
 
-  getPublicSettings(): Observable<SiteSettings> {
-    return this.http.get<SiteSettings>('/api/public/settings');
+  listPlans(): Observable<Plan[]> {
+    return this.http.get<Plan[]>('/api/admin/plans');
+  }
+
+  updatePlan(
+    id: string,
+    body: {
+      name: string;
+      description?: string | null;
+      price: number;
+      isActive: boolean;
+      isUnlimited: boolean;
+      maxBlocks?: number | null;
+      maxGalleryBlocks?: number | null;
+      maxPhotosPerGallery?: number | null;
+      maxTimelineEvents?: number | null;
+      maxMemories?: number | null;
+      includedUpdates: number;
+    }
+  ): Observable<Plan> {
+    return this.http.put<Plan>(`/api/admin/plans/${id}`, body);
+  }
+
+  getPublicPlans(): Observable<PublicPlan[]> {
+    return this.http.get<PublicPlan[]>('/api/public/plans');
+  }
+
+  getPublicSettings(): Observable<PublicSiteSettings> {
+    return this.http.get<PublicSiteSettings>('/api/public/settings');
   }
 
   getAdminSettings(): Observable<SiteSettings> {
     return this.http.get<SiteSettings>('/api/admin/settings');
   }
 
-  updateAdminSettings(body: SiteSettings): Observable<SiteSettings> {
+  updateAdminSettings(body: Partial<SiteSettings>): Observable<SiteSettings> {
     return this.http.put<SiteSettings>('/api/admin/settings', body);
   }
 }

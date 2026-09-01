@@ -17,6 +17,7 @@ import { adminUrl } from '../../../core/config/admin-routes';
             <nav class="hidden gap-4 font-sans text-sm md:flex">
               <a [routerLink]="root" routerLinkActive="font-semibold" [routerLinkActiveOptions]="{ exact: true }">Панель</a>
               <a [routerLink]="memorials" routerLinkActive="font-semibold">Меморіали</a>
+              <a [routerLink]="plans" routerLinkActive="font-semibold">Плани</a>
               <a [routerLink]="archive" routerLinkActive="font-semibold">Архів</a>
               <a [routerLink]="settings" routerLinkActive="font-semibold">Налаштування</a>
             </nav>
@@ -38,6 +39,7 @@ export class AdminLayoutComponent implements OnInit {
 
   readonly root = adminUrl();
   readonly memorials = adminUrl('memorials');
+  readonly plans = adminUrl('plans');
   readonly archive = adminUrl('archive');
   readonly settings = adminUrl('settings');
 

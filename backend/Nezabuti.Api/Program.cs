@@ -139,10 +139,13 @@ builder.Services.AddSingleton<IPublicIdGenerator, PublicIdGenerator>();
 builder.Services.AddSingleton<IRichTextSanitizer, RichTextSanitizer>();
 builder.Services.AddScoped<IMemorialRepository, MemorialRepository>();
 builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
+builder.Services.AddScoped<IPlanRepository, PlanRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 builder.Services.AddScoped<IQrCodeService, QrCodeService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
+builder.Services.AddScoped<IPlanLimitService, PlanLimitService>();
+builder.Services.AddScoped<IPlanService, PlanService>();
 builder.Services.AddScoped<IMemorialService, MemorialService>();
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
 
@@ -155,6 +158,8 @@ using (var scope = app.Services.CreateScope())
 {
     var mongo = scope.ServiceProvider.GetRequiredService<IMongoContext>();
     await mongo.EnsureIndexesAsync();
+    var planRepo = scope.ServiceProvider.GetRequiredService<IPlanRepository>();
+    await planRepo.EnsureBootstrapAsync();
 }
 
 var uploadsRoot = builder.Configuration["UPLOADS_ROOT"]

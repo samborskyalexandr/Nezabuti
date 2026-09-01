@@ -53,4 +53,41 @@ public class Memorial
 
     [BsonElement("shortText")]
     public string? ShortText { get; set; }
+
+    /// <summary>
+    /// Frozen plan terms. Null for legacy memorials until admin assigns a plan.
+    /// </summary>
+    [BsonElement("planSnapshot")]
+    public PlanSnapshot? PlanSnapshot { get; set; }
+
+    [BsonElement("usedUpdates")]
+    public int UsedUpdates { get; set; }
+
+    [BsonElement("qrPlateSize")]
+    [BsonRepresentation(BsonType.String)]
+    public QrPlateSize QrPlateSize { get; set; } = QrPlateSize.Size50;
+
+    /// <summary>
+    /// QR surcharge frozen when size was chosen / last saved. Protects old memorials from settings changes.
+    /// </summary>
+    [BsonElement("qrPriceDeltaSnapshot")]
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal QrPriceDeltaSnapshot { get; set; }
+
+    [BsonElement("paymentStatus")]
+    [BsonRepresentation(BsonType.String)]
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
+
+    /// <summary>
+    /// Actual amount due / agreed. May be manually overridden by admin.
+    /// </summary>
+    [BsonElement("finalPrice")]
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal? FinalPrice { get; set; }
+
+    [BsonElement("isFinalPriceOverridden")]
+    public bool IsFinalPriceOverridden { get; set; }
+
+    [BsonElement("paidAt")]
+    public DateTime? PaidAt { get; set; }
 }

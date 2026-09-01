@@ -9,6 +9,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/home/home-page.component').then((m) => m.HomePageComponent)
   },
   {
+    path: 'plans',
+    loadComponent: () => import('./pages/plans/plans-page.component').then((m) => m.PlansPageComponent)
+  },
+  {
     path: 'm/:publicId',
     loadComponent: () => import('./pages/memorial/memorial-page.component').then((m) => m.MemorialPageComponent),
     resolve: { memorial: publicMemorialResolver }
@@ -50,6 +54,11 @@ export const routes: Routes = [
           import('./pages/admin/memorial-editor/admin-memorial-editor-page.component').then(
             (m) => m.AdminMemorialEditorPageComponent
           )
+      },
+      {
+        path: 'plans',
+        loadComponent: () =>
+          import('./pages/admin/plans/admin-plans-page.component').then((m) => m.AdminPlansPageComponent)
       },
       {
         path: 'archive',

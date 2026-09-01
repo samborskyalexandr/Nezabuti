@@ -10,7 +10,7 @@ namespace Nezabuti.Api.Repositories;
 
 public interface IMemorialRepository
 {
-    Task<Memorial> CreateAsync(CreateMemorialRequest request, CancellationToken ct = default);
+    Task<Memorial> CreateAsync(CreateMemorialRequest request, PlanSnapshot snapshot, CancellationToken ct = default);
     Task<Memorial?> GetByIdAsync(string id, CancellationToken ct = default);
     Task<Memorial?> GetByPublicIdAsync(string publicId, CancellationToken ct = default);
     Task<(List<Memorial> Items, long Total)> ListAsync(
@@ -20,6 +20,10 @@ public interface IMemorialRepository
         int pageSize,
         CancellationToken ct = default);
     Task<Memorial?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default);
+    Task<Memorial?> UpdatePlanSnapshotAsync(string id, PlanSnapshot snapshot, CancellationToken ct = default);
+    Task<Memorial?> AdjustUsedUpdatesAsync(string id, int delta, CancellationToken ct = default);
+    Task<Memorial?> UpdatePaymentAsync(string id, PaymentStatus status, DateTime? paidAt, CancellationToken ct = default);
+    Task ReplaceAsync(Memorial memorial, CancellationToken ct = default);
     Task<Memorial?> ReorderBlocksAsync(string id, IReadOnlyList<string> blockIds, CancellationToken ct = default);
     Task<Memorial?> SetStatusAsync(string id, MemorialStatus status, CancellationToken ct = default);
     Task<bool> DeleteArchivedAsync(string id, CancellationToken ct = default);
@@ -44,7 +48,10 @@ public sealed class MemorialRepository : IMemorialRepository
         _sanitizer = sanitizer;
     }
 
-    public async Task<Memorial> CreateAsync(CreateMemorialRequest request, CancellationToken ct = default)
+    public async Task<Memorial> CreateAsync(
+        CreateMemorialRequest request,
+        PlanSnapshot snapshot,
+        CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
         var memorial = new Memorial
@@ -56,6 +63,14 @@ public sealed class MemorialRepository : IMemorialRepository
             ShortText = NormalizeOptional(request.ShortText),
             Status = MemorialStatus.Draft,
             Blocks = [],
+            PlanSnapshot = snapshot,
+            UsedUpdates = 0,
+            QrPlateSize = QrPlateSize.Size50,
+            QrPriceDeltaSnapshot = 0,
+            PaymentStatus = PaymentStatus.Unpaid,
+            FinalPrice = snapshot.Price,
+            IsFinalPriceOverridden = false,
+            PaidAt = null,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -147,6 +162,26 @@ public sealed class MemorialRepository : IMemorialRepository
         existing.LifePeriod = NormalizeOptional(request.LifePeriod);
         existing.ShortText = NormalizeOptional(request.ShortText);
         existing.Blocks = MapBlocks(request.Blocks);
+        if (request.QrPlateSize.HasValue)
+        {
+            existing.QrPlateSize = request.QrPlateSize.Value;
+        }
+
+        if (request.IsFinalPriceOverridden.HasValue)
+        {
+            existing.IsFinalPriceOverridden = request.IsFinalPriceOverridden.Value;
+        }
+
+        if (request.FinalPrice.HasValue)
+        {
+            if (request.FinalPrice.Value < 0)
+            {
+                throw new ArgumentException("Фінальна вартість не може бути від'ємною.");
+            }
+
+            existing.FinalPrice = request.FinalPrice.Value;
+        }
+
         existing.UpdatedAt = DateTime.UtcNow;
 
         if (!string.IsNullOrWhiteSpace(request.MainPhotoId))
@@ -167,6 +202,59 @@ public sealed class MemorialRepository : IMemorialRepository
 
         await _db.Memorials.ReplaceOneAsync(m => m.Id == id, existing, cancellationToken: ct);
         return existing;
+    }
+
+    public async Task<Memorial?> UpdatePlanSnapshotAsync(string id, PlanSnapshot snapshot, CancellationToken ct = default)
+    {
+        var existing = await GetByIdAsync(id, ct);
+        if (existing is null)
+        {
+            return null;
+        }
+
+        existing.PlanSnapshot = snapshot;
+        existing.UpdatedAt = DateTime.UtcNow;
+        await _db.Memorials.ReplaceOneAsync(m => m.Id == id, existing, cancellationToken: ct);
+        return existing;
+    }
+
+    public async Task<Memorial?> AdjustUsedUpdatesAsync(string id, int delta, CancellationToken ct = default)
+    {
+        var existing = await GetByIdAsync(id, ct);
+        if (existing is null)
+        {
+            return null;
+        }
+
+        existing.UsedUpdates = Math.Max(0, existing.UsedUpdates + delta);
+        existing.UpdatedAt = DateTime.UtcNow;
+        await _db.Memorials.ReplaceOneAsync(m => m.Id == id, existing, cancellationToken: ct);
+        return existing;
+    }
+
+    public async Task<Memorial?> UpdatePaymentAsync(
+        string id,
+        PaymentStatus status,
+        DateTime? paidAt,
+        CancellationToken ct = default)
+    {
+        var existing = await GetByIdAsync(id, ct);
+        if (existing is null)
+        {
+            return null;
+        }
+
+        existing.PaymentStatus = status;
+        existing.PaidAt = paidAt;
+        existing.UpdatedAt = DateTime.UtcNow;
+        await _db.Memorials.ReplaceOneAsync(m => m.Id == id, existing, cancellationToken: ct);
+        return existing;
+    }
+
+    public async Task ReplaceAsync(Memorial memorial, CancellationToken ct = default)
+    {
+        memorial.UpdatedAt = DateTime.UtcNow;
+        await _db.Memorials.ReplaceOneAsync(m => m.Id == memorial.Id, memorial, cancellationToken: ct);
     }
 
     public async Task UpdateMainPhotoAsync(string id, PhotoRef? photo, CancellationToken ct = default)

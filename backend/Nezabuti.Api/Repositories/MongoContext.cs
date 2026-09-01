@@ -10,6 +10,7 @@ public interface IMongoContext
     IMongoCollection<Memorial> Memorials { get; }
     IMongoCollection<MemorialStatistics> Statistics { get; }
     IMongoCollection<SiteSettings> SiteSettings { get; }
+    IMongoCollection<Plan> Plans { get; }
     Task EnsureIndexesAsync(CancellationToken cancellationToken = default);
 }
 
@@ -25,11 +26,13 @@ public sealed class MongoContext : IMongoContext
         Memorials = _db.GetCollection<Memorial>("memorials");
         Statistics = _db.GetCollection<MemorialStatistics>("memorial_statistics");
         SiteSettings = _db.GetCollection<SiteSettings>("site_settings");
+        Plans = _db.GetCollection<Plan>("plans");
     }
 
     public IMongoCollection<Memorial> Memorials { get; }
     public IMongoCollection<MemorialStatistics> Statistics { get; }
     public IMongoCollection<SiteSettings> SiteSettings { get; }
+    public IMongoCollection<Plan> Plans { get; }
 
     public async Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
     {
@@ -66,5 +69,11 @@ public sealed class MongoContext : IMongoContext
         await Statistics.Indexes.CreateManyAsync(
             [statsMemorialIndex, statsPublicIdIndex],
             cancellationToken);
+
+        var planCodeIndex = new CreateIndexModel<Plan>(
+            Builders<Plan>.IndexKeys.Ascending(p => p.Code),
+            new CreateIndexOptions { Unique = true, Name = "ux_plan_code" });
+
+        await Plans.Indexes.CreateOneAsync(planCodeIndex, cancellationToken: cancellationToken);
     }
 }

@@ -1,5 +1,7 @@
 export type MemorialStatus = 'Draft' | 'Published' | 'Archived';
 export type MemorialPrivacy = 'Public' | 'Private';
+export type QrPlateSize = 'Size50' | 'Size75' | 'Size100';
+export type PaymentStatus = 'Unpaid' | 'Paid';
 
 export interface PhotoRef {
   photoId: string;
@@ -38,6 +40,84 @@ export interface PublicMemorial {
   seo: SeoMeta;
 }
 
+export interface PlanSnapshot {
+  planId: string;
+  code: string;
+  name: string;
+  price: number;
+  isCustom: boolean;
+  isUnlimited: boolean;
+  maxBlocks?: number | null;
+  maxGalleryBlocks?: number | null;
+  maxPhotosPerGallery?: number | null;
+  maxTimelineEvents?: number | null;
+  maxMemories?: number | null;
+  includedUpdates: number;
+  snapshotAt: string;
+}
+
+export interface GalleryUsage {
+  blockId: string;
+  photosUsed: number;
+  maxPhotosPerGallery?: number | null;
+}
+
+export interface PlanUsage {
+  blocksUsed: number;
+  maxBlocks?: number | null;
+  galleriesUsed: number;
+  maxGalleryBlocks?: number | null;
+  timelineEventsUsed: number;
+  maxTimelineEvents?: number | null;
+  memoriesUsed: number;
+  maxMemories?: number | null;
+  usedUpdates: number;
+  includedUpdates: number;
+  isUnlimited: boolean;
+  galleries: GalleryUsage[];
+}
+
+export interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  isActive: boolean;
+  isCustom: boolean;
+  isUnlimited: boolean;
+  maxBlocks?: number | null;
+  maxGalleryBlocks?: number | null;
+  maxPhotosPerGallery?: number | null;
+  maxTimelineEvents?: number | null;
+  maxMemories?: number | null;
+  includedUpdates: number;
+}
+
+export interface PublicPlan {
+  code: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  maxGalleryBlocks?: number | null;
+  maxPhotosPerGallery?: number | null;
+  maxTimelineEvents?: number | null;
+  maxMemories?: number | null;
+  includedUpdates: number;
+  isRecommended: boolean;
+}
+
+export interface CustomPlanOverrides {
+  price?: number | null;
+  isUnlimited?: boolean | null;
+  maxBlocks?: number | null;
+  maxGalleryBlocks?: number | null;
+  maxPhotosPerGallery?: number | null;
+  maxTimelineEvents?: number | null;
+  maxMemories?: number | null;
+  includedUpdates?: number | null;
+}
+
 export interface MemorialListItem {
   id: string;
   publicId: string;
@@ -50,6 +130,10 @@ export interface MemorialListItem {
   archivedAt?: string | null;
   mainPhotoPreviewUrl?: string | null;
   mainPhotoThumbUrl?: string | null;
+  planName?: string | null;
+  planCode?: string | null;
+  paymentStatus?: PaymentStatus;
+  finalPrice?: number | null;
 }
 
 export interface MemorialAdmin {
@@ -67,6 +151,16 @@ export interface MemorialAdmin {
   updatedAt: string;
   publishedAt?: string | null;
   archivedAt?: string | null;
+  planSnapshot?: PlanSnapshot | null;
+  usedUpdates: number;
+  qrPlateSize: QrPlateSize;
+  qrPriceDeltaSnapshot: number;
+  calculatedPrice?: number | null;
+  finalPrice?: number | null;
+  isFinalPriceOverridden: boolean;
+  paymentStatus: PaymentStatus;
+  paidAt?: string | null;
+  usage?: PlanUsage | null;
 }
 
 export interface PagedResult<T> {
@@ -84,6 +178,24 @@ export interface MemorialStatistics {
 }
 
 export interface SiteSettings {
+  phone: string;
+  telegram: string;
+  viber: string;
+  additionalUpdatePrice: number;
+  qrSize50PriceDelta: number;
+  qrSize75PriceDelta: number;
+  qrSize100PriceDelta: number;
+  shortTextMaxChars: number;
+  textBlockMaxChars: number;
+  quoteMaxChars: number;
+  timelineDescriptionMaxChars: number;
+  memoryTextMaxChars: number;
+  serviceDescriptionMaxChars: number;
+  awardDescriptionMaxChars: number;
+  photoCaptionMaxChars: number;
+}
+
+export interface PublicSiteSettings {
   phone: string;
   telegram: string;
   viber: string;
@@ -105,6 +217,17 @@ export const PRIVACY_LABELS: Record<MemorialPrivacy, string> = {
   Private: 'Приватна'
 };
 
+export const QR_PLATE_LABELS: Record<QrPlateSize, string> = {
+  Size50: '50×50 мм',
+  Size75: '75×75 мм',
+  Size100: '100×100 мм'
+};
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  Unpaid: 'Не оплачено',
+  Paid: 'Оплачено'
+};
+
 export const BLOCK_TYPE_LABELS: Record<string, string> = {
   Text: 'Текст',
   Timeline: 'Життєвий шлях',
@@ -112,7 +235,7 @@ export const BLOCK_TYPE_LABELS: Record<string, string> = {
   Image: 'Велике фото',
   Quote: 'Цитата',
   Service: 'Служба',
-  Awards: 'Нагороди',
+  Awards: 'Відзнаки та нагороди',
   Memories: 'Спогади'
 };
 

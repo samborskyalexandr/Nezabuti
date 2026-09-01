@@ -45,8 +45,15 @@ public class AdminMemorialsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<MemorialAdminDto>> Create([FromBody] CreateMemorialRequest request, CancellationToken ct)
     {
-        var created = await _memorials.CreateAsync(request, ct);
-        return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+        try
+        {
+            var created = await _memorials.CreateAsync(request, ct);
+            return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id}")]
@@ -78,6 +85,54 @@ public class AdminMemorialsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("{id}/plan")]
+    public async Task<ActionResult<MemorialAdminDto>> AssignPlan(
+        string id,
+        [FromBody] AssignPlanRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var updated = await _memorials.AssignPlanAsync(id, request, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/updates")]
+    public async Task<ActionResult<MemorialAdminDto>> AdjustUpdates(
+        string id,
+        [FromBody] AdjustUpdatesRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var updated = await _memorials.AdjustUpdatesAsync(id, request, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("{id}/payment")]
+    public async Task<ActionResult<MemorialAdminDto>> UpdatePayment(
+        string id,
+        [FromBody] UpdatePaymentRequest request,
+        CancellationToken ct)
+    {
+        var updated = await _memorials.UpdatePaymentAsync(id, request, ct);
+        return updated is null ? NotFound() : Ok(updated);
     }
 
     [HttpPost("{id}/publish")]
