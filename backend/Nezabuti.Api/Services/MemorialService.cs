@@ -12,7 +12,7 @@ namespace Nezabuti.Api.Services;
 public interface IMemorialService
 {
     Task<MemorialAdminDto> CreateAsync(CreateMemorialRequest request, CancellationToken ct = default);
-    Task<PagedResult<MemorialListItemDto>> ListAsync(string? search, MemorialStatus? status, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<MemorialListItemDto>> ListAsync(string? search, MemorialStatus? status, bool? isDemo, int page, int pageSize, CancellationToken ct = default);
     Task<MemorialAdminDto?> GetAdminAsync(string id, CancellationToken ct = default);
     Task<MemorialAdminDto?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default);
     Task<MemorialAdminDto?> AssignPlanAsync(string id, AssignPlanRequest request, CancellationToken ct = default);
@@ -92,11 +92,12 @@ public sealed class MemorialService : IMemorialService
     public async Task<PagedResult<MemorialListItemDto>> ListAsync(
         string? search,
         MemorialStatus? status,
+        bool? isDemo,
         int page,
         int pageSize,
         CancellationToken ct = default)
     {
-        var (items, total) = await _repo.ListAsync(search, status, page, pageSize, ct);
+        var (items, total) = await _repo.ListAsync(search, status, isDemo, page, pageSize, ct);
         return new PagedResult<MemorialListItemDto>
         {
             Items = items.Select(MapListItem).ToList(),
@@ -388,6 +389,7 @@ public sealed class MemorialService : IMemorialService
         {
             FullName = previous.FullName,
             Privacy = previous.Privacy,
+            IsDemo = previous.IsDemo,
             Callsign = previous.Callsign,
             LifePeriod = previous.LifePeriod,
             ShortText = previous.ShortText,
@@ -411,6 +413,7 @@ public sealed class MemorialService : IMemorialService
         FullName = m.FullName,
         Status = m.Status,
         Privacy = m.Privacy,
+        IsDemo = m.IsDemo,
         CreatedAt = m.CreatedAt,
         UpdatedAt = m.UpdatedAt,
         PublishedAt = m.PublishedAt,
@@ -433,6 +436,7 @@ public sealed class MemorialService : IMemorialService
         MainPhoto = m.MainPhoto is null ? null : MapPhoto(m.MainPhoto),
         Status = m.Status,
         Privacy = m.Privacy,
+        IsDemo = m.IsDemo,
         Blocks = m.Blocks.OrderBy(b => b.Order).Select(MapBlock).ToList(),
         Callsign = m.Callsign,
         LifePeriod = m.LifePeriod,
@@ -490,6 +494,7 @@ public sealed class MemorialService : IMemorialService
             FullName = m.FullName,
             MainPhoto = m.MainPhoto is null ? null : MapPhoto(m.MainPhoto),
             Privacy = m.Privacy,
+            IsDemo = m.IsDemo,
             Blocks = blocks,
             Callsign = m.Callsign,
             LifePeriod = m.LifePeriod,
@@ -501,9 +506,7 @@ public sealed class MemorialService : IMemorialService
                 Description = description,
                 CanonicalUrl = canonical,
                 OgImageUrl = m.MainPhoto is null ? null : AbsoluteMediaUrl(m.MainPhoto.FullPath),
-                Robots = forAdminPreview
-                    ? "noindex,nofollow"
-                    : m.Privacy == MemorialPrivacy.Private ? "noindex,nofollow" : "index,follow"
+                Robots = MemorialSeo.Robots(m.IsDemo, m.Privacy, forAdminPreview)
             }
         };
     }

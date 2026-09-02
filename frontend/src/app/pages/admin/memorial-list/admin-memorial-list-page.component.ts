@@ -34,6 +34,11 @@ import { adminUrl } from '../../../core/config/admin-routes';
           <option value="Published">Опубліковано</option>
           <option value="Archived">В архіві</option>
         </select>
+        <select class="border border-memorial-line bg-white px-3 py-2 font-sans text-sm" [(ngModel)]="demoFilter" (ngModelChange)="load()">
+          <option value="all">Усі</option>
+          <option value="client">Клієнтські</option>
+          <option value="demo">Демо</option>
+        </select>
         <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" (click)="load()">Фільтр</button>
       </div>
 
@@ -62,7 +67,12 @@ import { adminUrl } from '../../../core/config/admin-routes';
                     <span class="text-memorial-muted">—</span>
                   }
                 </td>
-                <td class="px-4 py-3">{{ item.fullName }}</td>
+                <td class="px-4 py-3">
+                  {{ item.fullName }}
+                  @if (item.isDemo) {
+                    <span class="ml-2 inline-block border border-memorial-line px-1.5 py-px align-middle text-[0.65rem] font-medium uppercase tracking-[0.14em] text-memorial-muted">Демо</span>
+                  }
+                </td>
                 <td class="px-4 py-3">{{ item.planName || '—' }}</td>
                 <td class="px-4 py-3 text-memorial-muted">
                   @if (item.finalPrice != null) {
@@ -121,6 +131,14 @@ import { adminUrl } from '../../../core/config/admin-routes';
               }
             </fieldset>
 
+            <label class="mt-5 flex items-start gap-2 font-sans text-sm">
+              <input type="checkbox" class="mt-1" [(ngModel)]="createIsDemo" name="createIsDemo" />
+              <span>
+                <strong>Демонстраційна сторінка</strong>
+                <span class="mt-0.5 block text-memorial-muted">Використовується для рекламних прикладів і презентації можливостей Nezabuti.</span>
+              </span>
+            </label>
+
             @if (selectedPlan?.isCustom) {
               <div class="mt-4 space-y-3 border border-memorial-line bg-[#FAFAF8] p-4">
                 <p class="font-sans text-sm font-medium">Параметри Custom</p>
@@ -177,6 +195,7 @@ export class AdminMemorialListPageComponent implements OnInit {
   plans: Plan[] = [];
   search = '';
   status: MemorialStatus | undefined;
+  demoFilter: 'all' | 'client' | 'demo' = 'all';
   readonly statusLabels = STATUS_LABELS;
   readonly privacyLabels = PRIVACY_LABELS;
   readonly paymentLabels = PAYMENT_STATUS_LABELS;
@@ -185,6 +204,7 @@ export class AdminMemorialListPageComponent implements OnInit {
   creating = false;
   createName = '';
   createPlanId = '';
+  createIsDemo = false;
   createError = '';
   customUnlimited = true;
   customPrice = 0;
@@ -213,7 +233,8 @@ export class AdminMemorialListPageComponent implements OnInit {
   }
 
   load(): void {
-    this.api.listMemorials({ search: this.search || undefined, status: this.status }).subscribe((r) => {
+    const isDemo = this.demoFilter === 'all' ? undefined : this.demoFilter === 'demo';
+    this.api.listMemorials({ search: this.search || undefined, status: this.status, isDemo }).subscribe((r) => {
       this.items = r.items;
     });
   }
@@ -222,6 +243,7 @@ export class AdminMemorialListPageComponent implements OnInit {
     this.showCreate = true;
     this.createError = '';
     this.createName = '';
+    this.createIsDemo = false;
     this.createPlanId = this.plans.find((p) => p.code === 'Story')?.id || this.plans[0]?.id || '';
   }
 
@@ -262,6 +284,7 @@ export class AdminMemorialListPageComponent implements OnInit {
       .createMemorial({
         fullName: this.createName.trim(),
         planId: this.createPlanId,
+        isDemo: this.createIsDemo,
         customOverrides: custom
       })
       .subscribe({

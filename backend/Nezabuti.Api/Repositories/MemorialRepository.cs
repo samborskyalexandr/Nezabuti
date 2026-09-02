@@ -16,6 +16,7 @@ public interface IMemorialRepository
     Task<(List<Memorial> Items, long Total)> ListAsync(
         string? search,
         MemorialStatus? status,
+        bool? isDemo,
         int page,
         int pageSize,
         CancellationToken ct = default);
@@ -58,6 +59,7 @@ public sealed class MemorialRepository : IMemorialRepository
         {
             FullName = request.FullName.Trim(),
             Privacy = request.Privacy,
+            IsDemo = request.IsDemo,
             Callsign = NormalizeOptional(request.Callsign),
             LifePeriod = NormalizeOptional(request.LifePeriod),
             ShortText = NormalizeOptional(request.ShortText),
@@ -115,6 +117,7 @@ public sealed class MemorialRepository : IMemorialRepository
     public async Task<(List<Memorial> Items, long Total)> ListAsync(
         string? search,
         MemorialStatus? status,
+        bool? isDemo,
         int page,
         int pageSize,
         CancellationToken ct = default)
@@ -126,6 +129,16 @@ public sealed class MemorialRepository : IMemorialRepository
         if (status.HasValue)
         {
             filter &= Builders<Memorial>.Filter.Eq(m => m.Status, status.Value);
+        }
+
+        if (isDemo == true)
+        {
+            filter &= Builders<Memorial>.Filter.Eq(m => m.IsDemo, true);
+        }
+        else if (isDemo == false)
+        {
+            // Legacy documents without isDemo are treated as client memorials.
+            filter &= Builders<Memorial>.Filter.Ne(m => m.IsDemo, true);
         }
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -158,6 +171,7 @@ public sealed class MemorialRepository : IMemorialRepository
 
         existing.FullName = request.FullName.Trim();
         existing.Privacy = request.Privacy;
+        existing.IsDemo = request.IsDemo;
         existing.Callsign = NormalizeOptional(request.Callsign);
         existing.LifePeriod = NormalizeOptional(request.LifePeriod);
         existing.ShortText = NormalizeOptional(request.ShortText);

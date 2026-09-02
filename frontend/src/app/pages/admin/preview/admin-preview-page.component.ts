@@ -14,7 +14,12 @@ import { adminUrl } from '../../../core/config/admin-routes';
     <div class="min-h-screen bg-memorial-bg">
       <div class="border-b border-memorial-line bg-white px-6 py-3">
         <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
-          <p class="font-sans text-sm text-memorial-muted">Режим перегляду — статистика не змінюється</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <p class="font-sans text-sm text-memorial-muted">Режим перегляду — статистика не змінюється</p>
+            @if (memorial?.isDemo) {
+              <span class="border border-memorial-line px-2 py-0.5 font-sans text-xs text-memorial-ink">Демонстраційна сторінка</span>
+            }
+          </div>
           <div class="flex gap-3 font-sans text-sm">
             @if (editHref) {
               <a [routerLink]="editHref" class="underline">До редагування</a>

@@ -27,6 +27,12 @@ public class Memorial
     [BsonRepresentation(BsonType.String)]
     public MemorialPrivacy Privacy { get; set; } = MemorialPrivacy.Public;
 
+    /// <summary>
+    /// Advertising / presentation memorial. Missing field on legacy documents is treated as false.
+    /// </summary>
+    [BsonElement("isDemo")]
+    public bool IsDemo { get; set; }
+
     [BsonElement("blocks")]
     public List<MemorialBlock> Blocks { get; set; } = [];
 

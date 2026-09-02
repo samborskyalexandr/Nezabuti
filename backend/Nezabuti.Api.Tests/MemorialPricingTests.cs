@@ -94,6 +94,7 @@ public class MemorialPricingTests
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        Assert.Contains("IsDemo", names);
         Assert.DoesNotContain("PaymentStatus", names);
         Assert.DoesNotContain("FinalPrice", names);
         Assert.DoesNotContain("PaidAt", names);

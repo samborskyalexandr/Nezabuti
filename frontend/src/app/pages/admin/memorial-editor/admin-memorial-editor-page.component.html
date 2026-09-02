@@ -12,6 +12,10 @@
             <span class="mx-1">·</span>
             План: {{ memorial.planSnapshot.name }}
           }
+          @if (memorial.isDemo) {
+            <span class="mx-1">·</span>
+            <span class="inline-block border border-memorial-line bg-[#FAFAF8] px-1.5 py-px align-middle font-sans text-[0.65rem] font-medium uppercase tracking-[0.14em] text-memorial-ink">Демо</span>
+          }
           @if (dirty) {
             <span class="ml-2 text-amber-800">• є незбережені зміни</span>
           }
@@ -77,6 +81,13 @@
     <!-- Plan & usage -->
     <section class="space-y-4 border border-memorial-line bg-white p-6">
       <h2 class="font-serif text-xl">План і використання</h2>
+      <label class="flex items-start gap-2 font-sans text-sm">
+        <input type="checkbox" class="mt-1" [(ngModel)]="memorial.isDemo" name="isDemo" (ngModelChange)="markDirty()" />
+        <span>
+          <strong>Демонстраційна сторінка</strong>
+          <span class="block text-memorial-muted">Позначає меморіал як рекламний приклад. Перегляди публічної сторінки продовжують рахуватися.</span>
+        </span>
+      </label>
       @if (liveUsage(); as usage) {
         <ul class="grid gap-2 font-sans text-sm sm:grid-cols-2">
           <li>Блоки: {{ usageLabel(usage.blocksUsed, usage.maxBlocks) }}</li>

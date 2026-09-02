@@ -32,6 +32,7 @@ export interface PublicMemorial {
   fullName: string;
   mainPhoto?: PhotoRef | null;
   privacy: MemorialPrivacy;
+  isDemo?: boolean;
   blocks: MemorialBlock[];
   callsign?: string | null;
   lifePeriod?: string | null;
@@ -124,6 +125,7 @@ export interface MemorialListItem {
   fullName: string;
   status: MemorialStatus;
   privacy: MemorialPrivacy;
+  isDemo?: boolean;
   createdAt: string;
   updatedAt: string;
   publishedAt?: string | null;
@@ -145,6 +147,7 @@ export interface MemorialAdmin {
   mainPhoto?: PhotoRef | null;
   status: MemorialStatus;
   privacy: MemorialPrivacy;
+  isDemo?: boolean;
   blocks: MemorialBlock[];
   callsign?: string | null;
   lifePeriod?: string | null;

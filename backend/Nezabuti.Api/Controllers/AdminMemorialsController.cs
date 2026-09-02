@@ -34,11 +34,12 @@ public class AdminMemorialsController : ControllerBase
     public async Task<ActionResult<PagedResult<MemorialListItemDto>>> List(
         [FromQuery] string? search,
         [FromQuery] MemorialStatus? status,
+        [FromQuery] bool? isDemo,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _memorials.ListAsync(search, status, page, pageSize, ct);
+        var result = await _memorials.ListAsync(search, status, isDemo, page, pageSize, ct);
         return Ok(result);
     }
 

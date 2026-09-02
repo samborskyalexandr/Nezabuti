@@ -32,6 +32,10 @@ public class CreateMemorialRequest
     public string PlanId { get; set; } = string.Empty;
 
     public MemorialPrivacy Privacy { get; set; } = MemorialPrivacy.Public;
+
+    /// <summary>Advertising / presentation memorial. Default false.</summary>
+    public bool IsDemo { get; set; }
+
     public string? Callsign { get; set; }
     public string? LifePeriod { get; set; }
     public string? ShortText { get; set; }
@@ -63,6 +67,10 @@ public class UpdateMemorialRequest
     public string FullName { get; set; } = string.Empty;
 
     public MemorialPrivacy Privacy { get; set; } = MemorialPrivacy.Public;
+
+    /// <summary>Advertising / presentation memorial.</summary>
+    public bool IsDemo { get; set; }
+
     public string? Callsign { get; set; }
     public string? LifePeriod { get; set; }
     public string? ShortText { get; set; }
@@ -110,6 +118,7 @@ public class MemorialListItemDto
     public string FullName { get; set; } = string.Empty;
     public MemorialStatus Status { get; set; }
     public MemorialPrivacy Privacy { get; set; }
+    public bool IsDemo { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? PublishedAt { get; set; }
@@ -132,6 +141,7 @@ public class MemorialAdminDto
     public PhotoRefDto? MainPhoto { get; set; }
     public MemorialStatus Status { get; set; }
     public MemorialPrivacy Privacy { get; set; }
+    public bool IsDemo { get; set; }
     public List<MemorialBlockDto> Blocks { get; set; } = [];
     public string? Callsign { get; set; }
     public string? LifePeriod { get; set; }
@@ -250,6 +260,7 @@ public class PublicMemorialDto
     public string FullName { get; set; } = string.Empty;
     public PhotoRefDto? MainPhoto { get; set; }
     public MemorialPrivacy Privacy { get; set; }
+    public bool IsDemo { get; set; }
     public List<MemorialBlockDto> Blocks { get; set; } = [];
     public string? Callsign { get; set; }
     public string? LifePeriod { get; set; }

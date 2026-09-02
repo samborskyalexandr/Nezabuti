@@ -140,6 +140,7 @@ export class AdminMemorialEditorPageComponent implements OnInit {
     m.isFinalPriceOverridden ??= false;
     m.paymentStatus ??= 'Unpaid';
     m.qrPriceDeltaSnapshot ??= 0;
+    m.isDemo ??= false;
     this.memorial = m;
     this.assignPlanId = m.planSnapshot?.planId || '';
     this.pendingQrDelta = null;
@@ -261,6 +262,7 @@ export class AdminMemorialEditorPageComponent implements OnInit {
     return {
       fullName: m.fullName,
       privacy: m.privacy,
+      isDemo: m.isDemo ?? false,
       callsign: m.callsign,
       lifePeriod: m.lifePeriod,
       shortText: m.shortText,
@@ -301,7 +303,7 @@ export class AdminMemorialEditorPageComponent implements OnInit {
       return;
     }
 
-    if (this.memorial.paymentStatus === 'Unpaid') {
+    if (this.memorial.paymentStatus === 'Unpaid' && !this.memorial.isDemo) {
       if (!confirm('Меморіал ще не позначений як оплачений. Все одно опублікувати?')) {
         return;
       }

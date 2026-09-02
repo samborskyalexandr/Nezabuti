@@ -37,6 +37,7 @@ export class ApiService {
   listMemorials(params: {
     search?: string;
     status?: MemorialStatus;
+    isDemo?: boolean;
     page?: number;
     pageSize?: number;
   }): Observable<PagedResult<MemorialListItem>> {
@@ -48,6 +49,9 @@ export class ApiService {
     }
     if (params.status) {
       httpParams = httpParams.set('status', params.status);
+    }
+    if (params.isDemo === true || params.isDemo === false) {
+      httpParams = httpParams.set('isDemo', String(params.isDemo));
     }
     return this.http.get<PagedResult<MemorialListItem>>('/api/admin/memorials', { params: httpParams });
   }
@@ -64,6 +68,7 @@ export class ApiService {
     fullName: string;
     planId: string;
     privacy?: string;
+    isDemo?: boolean;
     callsign?: string | null;
     lifePeriod?: string | null;
     shortText?: string | null;
@@ -73,6 +78,7 @@ export class ApiService {
       fullName: body.fullName,
       planId: body.planId,
       privacy: body.privacy ?? 'Public',
+      isDemo: body.isDemo ?? false,
       callsign: body.callsign,
       lifePeriod: body.lifePeriod,
       shortText: body.shortText,
@@ -85,6 +91,7 @@ export class ApiService {
     body: {
       fullName: string;
       privacy: string;
+      isDemo?: boolean;
       callsign?: string | null;
       lifePeriod?: string | null;
       shortText?: string | null;

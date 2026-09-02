@@ -22,6 +22,12 @@ import { RevealDirective } from '../../directives/reveal.directive';
           >
             Nezabuti
           </a>
+          @if (memorial().isDemo) {
+            <div class="mt-3">
+              <p class="font-sans text-[0.7rem] font-medium uppercase tracking-[0.2em] text-memorial-muted">Демонстраційна сторінка</p>
+              <p class="mt-1 max-w-xl font-sans text-xs leading-relaxed text-memorial-muted">Ця сторінка створена як приклад оформлення Nezabuti.</p>
+            </div>
+          }
         </div>
       </header>
 

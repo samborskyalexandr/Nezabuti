@@ -10,7 +10,7 @@ import { adminUrl } from '../../../core/config/admin-routes';
   template: `
     <div class="space-y-8">
       <h1 class="font-serif text-3xl">Панель</h1>
-      <div class="grid gap-4 sm:grid-cols-3">
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="border border-memorial-line bg-white p-5">
           <p class="font-sans text-sm text-memorial-muted">Усього</p>
           <p class="mt-2 font-serif text-3xl">{{ total }}</p>
@@ -23,6 +23,10 @@ import { adminUrl } from '../../../core/config/admin-routes';
           <p class="font-sans text-sm text-memorial-muted">В архіві</p>
           <p class="mt-2 font-serif text-3xl">{{ archived }}</p>
         </div>
+        <div class="border border-memorial-line bg-white p-5">
+          <p class="font-sans text-sm text-memorial-muted">Демо</p>
+          <p class="mt-2 font-serif text-3xl">{{ demo }}</p>
+        </div>
       </div>
       <a [routerLink]="memorialsLink" class="inline-block border border-memorial-ink px-4 py-2 font-sans text-sm">До списку меморіалів</a>
     </div>
@@ -33,6 +37,7 @@ export class AdminDashboardPageComponent implements OnInit {
   total = 0;
   published = 0;
   archived = 0;
+  demo = 0;
   readonly memorialsLink = adminUrl('memorials');
 
   ngOnInit(): void {
@@ -44,5 +49,8 @@ export class AdminDashboardPageComponent implements OnInit {
     this.api
       .listMemorials({ status: 'Archived', pageSize: 1 })
       .subscribe({ next: (r) => (this.archived = r.total), ...ignore });
+    this.api
+      .listMemorials({ isDemo: true, pageSize: 1 })
+      .subscribe({ next: (r) => (this.demo = r.total), ...ignore });
   }
 }

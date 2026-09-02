@@ -44,6 +44,8 @@ public sealed class StatisticsService : IStatisticsService
 
     public async Task RecordPublicViewAsync(string publicId, bool isAdminPreview, CancellationToken ct = default)
     {
+        // Demo memorials are counted the same as ordinary public visits.
+        // Only admin preview is excluded from statistics.
         if (isAdminPreview)
         {
             return;

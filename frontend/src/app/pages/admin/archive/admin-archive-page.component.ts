@@ -23,6 +23,9 @@ import { adminUrl } from '../../../core/config/admin-routes';
               }
               <div>
                 <a [routerLink]="editLink(item.id)" class="font-sans underline">{{ item.fullName }}</a>
+                @if (item.isDemo) {
+                  <span class="ml-2 inline-block border border-memorial-line px-1.5 py-px align-middle text-[0.65rem] font-medium uppercase tracking-[0.14em] text-memorial-muted">Демо</span>
+                }
                 <p class="font-sans text-xs text-memorial-muted">{{ item.publicId }}</p>
               </div>
             </div>
