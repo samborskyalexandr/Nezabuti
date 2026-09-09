@@ -77,10 +77,46 @@
       <p class="font-sans text-sm text-red-700">{{ error }}</p>
     }
 
+    <nav class="flex flex-wrap gap-1 border-b border-memorial-line font-sans text-sm" aria-label="Розділи редактора">
+      <button
+        type="button"
+        class="border-b-2 px-4 py-2.5 transition"
+        [class.border-memorial-ink]="editorTab === 'memorial'"
+        [class.text-memorial-ink]="editorTab === 'memorial'"
+        [class.border-transparent]="editorTab !== 'memorial'"
+        [class.text-memorial-muted]="editorTab !== 'memorial'"
+        (click)="editorTab = 'memorial'"
+      >
+        Меморіал
+      </button>
+      <button
+        type="button"
+        class="border-b-2 px-4 py-2.5 transition"
+        [class.border-memorial-ink]="editorTab === 'plan'"
+        [class.text-memorial-ink]="editorTab === 'plan'"
+        [class.border-transparent]="editorTab !== 'plan'"
+        [class.text-memorial-muted]="editorTab !== 'plan'"
+        (click)="editorTab = 'plan'"
+      >
+        План і використання
+      </button>
+      <button
+        type="button"
+        class="border-b-2 px-4 py-2.5 transition"
+        [class.border-memorial-ink]="editorTab === 'billing'"
+        [class.text-memorial-ink]="editorTab === 'billing'"
+        [class.border-transparent]="editorTab !== 'billing'"
+        [class.text-memorial-muted]="editorTab !== 'billing'"
+        (click)="editorTab = 'billing'"
+      >
+        Оплата та продовження
+      </button>
+    </nav>
+
     <fieldset class="min-w-0 space-y-8 border-0 p-0 disabled:opacity-75" [disabled]="isArchived">
+    @if (editorTab === 'plan') {
     <!-- Plan & usage -->
     <section class="space-y-4 border border-memorial-line bg-white p-6">
-      <h2 class="font-serif text-xl">План і використання</h2>
       <label class="flex items-start gap-2 font-sans text-sm">
         <input type="checkbox" class="mt-1" [(ngModel)]="memorial.isDemo" name="isDemo" (ngModelChange)="markDirty()" />
         <span>
@@ -156,26 +192,74 @@
         </p>
       }
     </section>
+    }
 
-    <!-- Payment -->
-    <section class="space-y-4 border border-memorial-line bg-white p-6">
-      <h2 class="font-serif text-xl">Оплата</h2>
+    @if (editorTab === 'billing') {
+    <!-- Billing -->
+    <section class="space-y-4 border border-memorial-line bg-white p-6" [class.opacity-80]="memorial.isDemo">
+      @if (memorial.isDemo) {
+        <p class="font-sans text-xs text-memorial-muted">
+          Демо-сторінка: автоматичне призупинення за білінгом не застосовується. Блок оплати можна використовувати за потреби.
+        </p>
+      }
+
+      <div class="space-y-3 border border-memorial-line bg-[#FAFAF8] p-4">
+        <p class="font-sans text-sm font-medium">Замовник</p>
+        @if (selectedCustomer) {
+          <div class="font-sans text-sm">
+            <p>{{ selectedCustomer.name }}</p>
+            <p class="text-memorial-muted">{{ selectedCustomer.phone }}</p>
+            @if (selectedCustomer.email) {
+              <p class="text-memorial-muted">{{ selectedCustomer.email }}</p>
+            }
+            <button type="button" class="mt-2 text-xs text-memorial-muted underline" (click)="clearCustomer()">Зняти замовника</button>
+          </div>
+        } @else {
+          <p class="font-sans text-sm text-memorial-muted">Не призначено</p>
+        }
+        <div class="flex flex-wrap gap-2">
+          <input
+            class="min-w-[12rem] flex-1 border border-memorial-line bg-white px-3 py-2 font-sans text-sm"
+            placeholder="Пошук за ім’ям або телефоном"
+            [(ngModel)]="customerSearch"
+            name="customerSearch"
+            (keyup.enter)="searchCustomers()"
+          />
+          <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" [disabled]="customerSearchBusy" (click)="searchCustomers()">
+            {{ customerSearchBusy ? '…' : 'Знайти' }}
+          </button>
+          <button type="button" class="border border-memorial-ink px-3 py-2 font-sans text-sm" (click)="openCreateCustomer()">Новий</button>
+        </div>
+        @if (customerResults.length) {
+          <ul class="divide-y divide-memorial-line border border-memorial-line bg-white">
+            @for (c of customerResults; track c.id) {
+              <li>
+                <button type="button" class="flex w-full flex-col items-start px-3 py-2 text-left font-sans text-sm hover:bg-[#FAFAF8]" (click)="selectCustomer(c)">
+                  <span>{{ c.name }}</span>
+                  <span class="text-xs text-memorial-muted">{{ c.phone }}{{ c.email ? ' · ' + c.email : '' }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
       <dl class="grid gap-2 font-sans text-sm sm:grid-cols-2">
         <div>
           <dt class="text-memorial-muted">План</dt>
           <dd>{{ memorial.planSnapshot?.name || '—' }}</dd>
         </div>
         <div>
-          <dt class="text-memorial-muted">Вартість плану</dt>
-          <dd>{{ moneyLabel(memorial.planSnapshot?.price) }}</dd>
+          <dt class="text-memorial-muted">Перший рік</dt>
+          <dd>{{ moneyLabel(planInitialPrice) }}</dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Продовження</dt>
+          <dd>{{ moneyLabel(planRenewalPrice) }} / рік</dd>
         </div>
         <div>
           <dt class="text-memorial-muted">Розмір QR-таблички</dt>
           <dd>QR {{ qrLabels[memorial.qrPlateSize] }}: +{{ liveQrDelta | number:'1.0-0' }} грн</dd>
-        </div>
-        <div>
-          <dt class="text-memorial-muted">Доплата за QR</dt>
-          <dd>{{ moneyLabel(liveQrDelta) }}</dd>
         </div>
         <div>
           <dt class="text-memorial-muted">Розрахункова вартість</dt>
@@ -199,42 +283,182 @@
             }
           </dd>
         </div>
-        <div class="sm:col-span-2">
-          <dt class="text-memorial-muted">Статус</dt>
+        <div>
+          <dt class="text-memorial-muted">Оплачено до</dt>
           <dd>
-            {{ paymentLabels[memorial.paymentStatus] }}
-            @if (memorial.paymentStatus === 'Paid' && memorial.paidAt) {
-              <span class="text-memorial-muted"> · {{ memorial.paidAt | date:'dd.MM.yyyy HH:mm' }}</span>
+            @if (memorial.paidUntil) {
+              {{ memorial.paidUntil | date:'dd.MM.yyyy' }}
+            } @else {
+              —
+            }
+          </dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Пільговий період до</dt>
+          <dd>
+            @if (memorial.graceUntil) {
+              {{ memorial.graceUntil | date:'dd.MM.yyyy' }}
+            } @else {
+              —
+            }
+          </dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Статус оплати</dt>
+          <dd>{{ memorial.paymentStateLabel || paymentStateLabels[memorial.paymentState] }}</dd>
+        </div>
+        <div>
+          <dt class="text-memorial-muted">Статус сторінки</dt>
+          <dd>{{ statusLabels[memorial.status] }}</dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="text-memorial-muted">Остання оплата</dt>
+          <dd>
+            @if (memorial.lastPaymentAt) {
+              {{ memorial.lastPaymentAt | date:'dd.MM.yyyy HH:mm' }}
+            } @else if (memorial.paidAt) {
+              {{ memorial.paidAt | date:'dd.MM.yyyy HH:mm' }}
+            } @else {
+              —
             }
           </dd>
         </div>
       </dl>
+
       <div class="flex flex-wrap gap-2">
-        @if (memorial.paymentStatus !== 'Paid') {
+        @if (needsInitialPayment) {
           <button
             type="button"
             class="border border-memorial-ink px-3 py-2 font-sans text-sm disabled:opacity-50"
-            [disabled]="paymentBusy"
-            (click)="markPaid()"
+            [disabled]="paymentBusy || isArchived"
+            (click)="openConfirmBilling('initial')"
           >
-            Позначити як оплачено
+            Підтвердити первинну оплату
           </button>
         } @else {
           <button
             type="button"
-            class="border border-memorial-line px-3 py-2 font-sans text-sm disabled:opacity-50"
-            [disabled]="paymentBusy"
-            (click)="markUnpaid()"
+            class="border border-memorial-ink px-3 py-2 font-sans text-sm disabled:opacity-50"
+            [disabled]="paymentBusy || isArchived"
+            (click)="openConfirmBilling('renewal')"
           >
-            Позначити як неоплачений
+            Підтвердити продовження на 1 рік
           </button>
         }
       </div>
       <p class="font-sans text-xs text-memorial-muted">
-        Зміна фінальної вартості зберігається кнопкою «Зберегти». Статус оплати оновлюється одразу.
+        Зміна фінальної вартості та замовника зберігається кнопкою «Зберегти». Підтвердження оплати оновлюється одразу.
       </p>
+
+      <div class="space-y-2 pt-2">
+        <h3 class="font-sans text-sm font-medium">Історія оплат</h3>
+        @if (paymentsLoading) {
+          <p class="font-sans text-xs text-memorial-muted">Завантаження…</p>
+        } @else if (!payments.length) {
+          <p class="font-sans text-xs text-memorial-muted">Поки немає записів.</p>
+        } @else {
+          <div class="overflow-x-auto border border-memorial-line">
+            <table class="min-w-full font-sans text-xs">
+              <thead class="border-b border-memorial-line text-left text-memorial-muted">
+                <tr>
+                  <th class="px-3 py-2">Дата</th>
+                  <th class="px-3 py-2">Тип</th>
+                  <th class="px-3 py-2">Сума</th>
+                  <th class="px-3 py-2">Період</th>
+                  <th class="px-3 py-2">Примітка</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of payments; track p.id) {
+                  <tr class="border-b border-memorial-line">
+                    <td class="px-3 py-2">{{ p.paidAt | date:'dd.MM.yyyy' }}</td>
+                    <td class="px-3 py-2">{{ paymentTypeLabels[p.type] || p.type }}</td>
+                    <td class="px-3 py-2">{{ p.amount | number:'1.0-0' }} грн</td>
+                    <td class="px-3 py-2">{{ p.periodFrom | date:'dd.MM.yyyy' }} — {{ p.periodTo | date:'dd.MM.yyyy' }}</td>
+                    <td class="px-3 py-2 text-memorial-muted">{{ p.note || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
     </section>
 
+    @if (showCreateCustomer) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" (click)="showCreateCustomer = false">
+        <div class="w-full max-w-md space-y-4 border border-memorial-line bg-white p-6 shadow-lg" (click)="$event.stopPropagation()">
+          <h3 class="font-serif text-xl">Новий замовник</h3>
+          <label class="block font-sans text-sm">
+            Ім’я *
+            <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="newCustomerName" name="newCustName" />
+          </label>
+          <label class="block font-sans text-sm">
+            Телефон *
+            <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="newCustomerPhone" name="newCustPhone" />
+          </label>
+          <label class="block font-sans text-sm">
+            Email
+            <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="newCustomerEmail" name="newCustEmail" />
+          </label>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" (click)="showCreateCustomer = false">Скасувати</button>
+            <button type="button" class="bg-memorial-ink px-3 py-2 font-sans text-sm text-white disabled:opacity-50" [disabled]="customerBusy" (click)="createAndAssignCustomer()">
+              {{ customerBusy ? 'Створення…' : 'Створити' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (showConfirmBilling) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" (click)="closeConfirmBilling()">
+        <div class="w-full max-w-md space-y-4 border border-memorial-line bg-white p-6 shadow-lg" (click)="$event.stopPropagation()">
+          <h3 class="font-serif text-xl">
+            {{ confirmKind === 'initial' ? 'Підтвердити первинну оплату' : 'Підтвердити продовження на 1 рік' }}
+          </h3>
+          @if (confirmBillingPreview; as preview) {
+            <dl class="grid gap-1 font-sans text-sm">
+              <div class="flex justify-between gap-4">
+                <dt class="text-memorial-muted">Дата підтвердження</dt>
+                <dd>{{ formatBillingDate(preview.paymentDate) }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-memorial-muted">Початок періоду</dt>
+                <dd>{{ formatBillingDate(preview.periodFrom) }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-memorial-muted">Оплачено до</dt>
+                <dd>{{ formatBillingDate(preview.paidUntil) }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-memorial-muted">Пільговий період до</dt>
+                <dd>{{ formatBillingDate(preview.graceUntil) }}</dd>
+              </div>
+            </dl>
+          } @else {
+            <p class="font-sans text-sm text-memorial-muted">Період: {{ confirmPeriodLabel }}</p>
+          }
+          <label class="block font-sans text-sm">
+            Сума (грн)
+            <input type="number" min="0" step="1" class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="confirmAmount" name="confirmAmount" />
+          </label>
+          <label class="block font-sans text-sm">
+            Примітка
+            <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="confirmNote" name="confirmNote" />
+          </label>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="border border-memorial-line px-3 py-2 font-sans text-sm" [disabled]="paymentBusy" (click)="closeConfirmBilling()">Скасувати</button>
+            <button type="button" class="bg-memorial-ink px-3 py-2 font-sans text-sm text-white disabled:opacity-50" [disabled]="paymentBusy" (click)="submitConfirmBilling()">
+              {{ paymentBusy ? 'Збереження…' : 'Підтвердити' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+    }
+
+    @if (editorTab === 'memorial') {
     <!-- Main info -->
     <section class="space-y-4 border border-memorial-line bg-white p-6">
       <h2 class="font-serif text-xl">Основна інформація</h2>
@@ -301,27 +525,7 @@
 
     <!-- Blocks -->
     <section class="space-y-4 border border-memorial-line bg-white p-6">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="font-serif text-xl">Блоки</h2>
-        <button type="button" class="border border-memorial-ink px-3 py-2 font-sans text-sm" (click)="showAddBlock = !showAddBlock">+ Додати блок</button>
-      </div>
-
-      @if (showAddBlock) {
-        <div class="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
-          @for (type of blockTypes; track type) {
-            @let check = canAddBlock(type);
-            <button
-              type="button"
-              class="border border-memorial-line px-3 py-2 text-left font-sans text-sm hover:bg-[#FAFAF8] disabled:cursor-not-allowed disabled:opacity-40"
-              [disabled]="!check.ok"
-              [title]="check.error || ''"
-              (click)="addBlock(type)"
-            >
-              {{ blockTypeLabels[type] }}
-            </button>
-          }
-        </div>
-      }
+      <h2 class="font-serif text-xl">Блоки</h2>
 
       <ul class="space-y-3">
         @for (block of blocks(); track block.id; let i = $index) {
@@ -373,15 +577,6 @@
                   }
                   @case ('Gallery') {
                     @let galCheck = canAddGalleryPhoto(block);
-                    <label
-                      class="inline-block border border-memorial-line px-3 py-2 font-sans text-sm"
-                      [class.cursor-pointer]="galCheck.ok"
-                      [class.opacity-40]="!galCheck.ok"
-                      [title]="galCheck.error || ''"
-                    >
-                      + Додати фото
-                      <input type="file" accept="image/*" class="hidden" [disabled]="!galCheck.ok" (change)="uploadBlockPhoto(block, $event, 'gallery')" />
-                    </label>
                     <ul class="space-y-3">
                       @for (item of asItems(block); track item['photoId']; let gi = $index) {
                         <li class="flex flex-wrap items-center gap-3 border border-memorial-line p-2">
@@ -393,18 +588,18 @@
                         </li>
                       }
                     </ul>
+                    <label
+                      class="inline-block border border-memorial-line px-3 py-2 font-sans text-sm"
+                      [class.cursor-pointer]="galCheck.ok"
+                      [class.opacity-40]="!galCheck.ok"
+                      [title]="galCheck.error || ''"
+                    >
+                      + Додати фото
+                      <input type="file" accept="image/*" class="hidden" [disabled]="!galCheck.ok" (change)="uploadBlockPhoto(block, $event, 'gallery')" />
+                    </label>
                   }
                   @case ('Timeline') {
                     @let evCheck = canAddTimelineEvent();
-                    <button
-                      type="button"
-                      class="border border-memorial-line px-3 py-1 font-sans text-sm disabled:opacity-40"
-                      [disabled]="!evCheck.ok"
-                      [title]="evCheck.error || ''"
-                      (click)="addEvent(block)"
-                    >
-                      + Подія
-                    </button>
                     @for (ev of asEvents(block); track ev['id']; let ei = $index) {
                       <div class="space-y-2 border border-memorial-line p-3">
                         <div class="flex justify-end gap-1">
@@ -424,9 +619,17 @@
                         </label>
                       </div>
                     }
+                    <button
+                      type="button"
+                      class="border border-memorial-line px-3 py-1 font-sans text-sm disabled:opacity-40"
+                      [disabled]="!evCheck.ok"
+                      [title]="evCheck.error || ''"
+                      (click)="addEvent(block)"
+                    >
+                      + Подія
+                    </button>
                   }
                   @case ('Awards') {
-                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addAward(block)">+ Відзнака</button>
                     @for (item of asItems(block); track item['id']; let ai = $index) {
                       <div class="space-y-2 border border-memorial-line p-3">
                         <div class="flex justify-end gap-1">
@@ -439,18 +642,10 @@
                         <label class="block font-sans text-sm">Опис<textarea class="mt-1 w-full border border-memorial-line px-2 py-1" rows="2" [(ngModel)]="item['description']" (ngModelChange)="markDirty()"></textarea></label>
                       </div>
                     }
+                    <button type="button" class="border border-memorial-line px-3 py-1 font-sans text-sm" (click)="addAward(block)">+ Відзнака</button>
                   }
                   @case ('Memories') {
                     @let memCheck = canAddMemory();
-                    <button
-                      type="button"
-                      class="border border-memorial-line px-3 py-1 font-sans text-sm disabled:opacity-40"
-                      [disabled]="!memCheck.ok"
-                      [title]="memCheck.error || ''"
-                      (click)="addMemory(block)"
-                    >
-                      + Спогад
-                    </button>
                     @for (item of asItems(block); track item['id']; let mi = $index) {
                       <div class="space-y-2 border border-memorial-line p-3">
                         <div class="flex justify-end gap-1">
@@ -470,6 +665,15 @@
                         </label>
                       </div>
                     }
+                    <button
+                      type="button"
+                      class="border border-memorial-line px-3 py-1 font-sans text-sm disabled:opacity-40"
+                      [disabled]="!memCheck.ok"
+                      [title]="memCheck.error || ''"
+                      (click)="addMemory(block)"
+                    >
+                      + Спогад
+                    </button>
                   }
                 }
               </div>
@@ -479,6 +683,26 @@
           <li class="font-sans text-sm text-memorial-muted">Блоків ще немає. Додайте перший блок.</li>
         }
       </ul>
+
+      <div class="space-y-3">
+        <button type="button" class="border border-memorial-ink px-3 py-2 font-sans text-sm" (click)="showAddBlock = !showAddBlock">+ Додати блок</button>
+        @if (showAddBlock) {
+          <div class="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+            @for (type of blockTypes; track type) {
+              @let check = canAddBlock(type);
+              <button
+                type="button"
+                class="border border-memorial-line px-3 py-2 text-left font-sans text-sm hover:bg-[#FAFAF8] disabled:cursor-not-allowed disabled:opacity-40"
+                [disabled]="!check.ok"
+                [title]="check.error || ''"
+                (click)="addBlock(type)"
+              >
+                {{ blockTypeLabels[type] }}
+              </button>
+            }
+          </div>
+        }
+      </div>
     </section>
 
     @if (stats) {
@@ -487,6 +711,7 @@
         <p class="mt-2 font-sans text-sm">Переглядів: {{ stats.totalViews }}</p>
         <p class="font-sans text-sm text-memorial-muted">Останній перегляд: {{ stats.lastViewedAt || '—' }}</p>
       </section>
+    }
     }
     </fieldset>
   </div>

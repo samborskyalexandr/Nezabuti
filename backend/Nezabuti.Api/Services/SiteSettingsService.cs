@@ -9,15 +9,23 @@ public interface ISiteSettingsService
     Task<SiteSettingsDto> GetAsync(CancellationToken ct = default);
     Task<PublicSiteSettingsDto> GetPublicAsync(CancellationToken ct = default);
     Task<SiteSettingsDto> UpdateAsync(UpdateSiteSettingsRequest request, CancellationToken ct = default);
+    Task<TelegramTestResultDto> TestTelegramAsync(CancellationToken ct = default);
 }
 
 public sealed class SiteSettingsService : ISiteSettingsService
 {
     private readonly ISiteSettingsRepository _repo;
+    private readonly ISecretEncryptionService _secrets;
+    private readonly ITelegramAdminNotifyService _telegram;
 
-    public SiteSettingsService(ISiteSettingsRepository repo)
+    public SiteSettingsService(
+        ISiteSettingsRepository repo,
+        ISecretEncryptionService secrets,
+        ITelegramAdminNotifyService telegram)
     {
         _repo = repo;
+        _secrets = secrets;
+        _telegram = telegram;
     }
 
     public async Task<SiteSettingsDto> GetAsync(CancellationToken ct = default)
@@ -76,6 +84,23 @@ public sealed class SiteSettingsService : ISiteSettingsService
             current.QrSize100PriceDelta = request.QrSize100PriceDelta.Value;
         }
 
+        if (request.TelegramNotifyEnabled.HasValue)
+        {
+            current.TelegramNotifyEnabled = request.TelegramNotifyEnabled.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.TelegramBotToken))
+        {
+            current.TelegramBotTokenEnc = _secrets.Encrypt(request.TelegramBotToken.Trim());
+        }
+
+        if (request.TelegramChatId is not null)
+        {
+            current.TelegramChatId = string.IsNullOrWhiteSpace(request.TelegramChatId)
+                ? null
+                : request.TelegramChatId.Trim();
+        }
+
         if (request.ShortTextMaxChars.HasValue)
         {
             current.ShortTextMaxChars = ClampChars(request.ShortTextMaxChars.Value);
@@ -120,24 +145,38 @@ public sealed class SiteSettingsService : ISiteSettingsService
         return Map(settings);
     }
 
-    private static SiteSettingsDto Map(SiteSettings s) => new()
+    public async Task<TelegramTestResultDto> TestTelegramAsync(CancellationToken ct = default)
     {
-        Phone = s.Phone ?? string.Empty,
-        Telegram = s.Telegram ?? string.Empty,
-        Viber = s.Viber ?? string.Empty,
-        AdditionalUpdatePrice = s.AdditionalUpdatePrice,
-        QrSize50PriceDelta = s.QrSize50PriceDelta,
-        QrSize75PriceDelta = s.QrSize75PriceDelta,
-        QrSize100PriceDelta = s.QrSize100PriceDelta,
-        ShortTextMaxChars = s.ShortTextMaxChars,
-        TextBlockMaxChars = s.TextBlockMaxChars,
-        QuoteMaxChars = s.QuoteMaxChars,
-        TimelineDescriptionMaxChars = s.TimelineDescriptionMaxChars,
-        MemoryTextMaxChars = s.MemoryTextMaxChars,
-        ServiceDescriptionMaxChars = s.ServiceDescriptionMaxChars,
-        AwardDescriptionMaxChars = s.AwardDescriptionMaxChars,
-        PhotoCaptionMaxChars = s.PhotoCaptionMaxChars
-    };
+        var (ok, message) = await _telegram.SendTestMessageAsync(ct);
+        return new TelegramTestResultDto { Ok = ok, Message = message };
+    }
+
+    private SiteSettingsDto Map(SiteSettings s)
+    {
+        var hasToken = !string.IsNullOrWhiteSpace(s.TelegramBotTokenEnc);
+        return new()
+        {
+            Phone = s.Phone ?? string.Empty,
+            Telegram = s.Telegram ?? string.Empty,
+            Viber = s.Viber ?? string.Empty,
+            AdditionalUpdatePrice = s.AdditionalUpdatePrice,
+            QrSize50PriceDelta = s.QrSize50PriceDelta,
+            QrSize75PriceDelta = s.QrSize75PriceDelta,
+            QrSize100PriceDelta = s.QrSize100PriceDelta,
+            TelegramNotifyEnabled = s.TelegramNotifyEnabled,
+            TelegramBotTokenMasked = hasToken ? _secrets.Mask(s.TelegramBotTokenEnc) : string.Empty,
+            HasTelegramBotToken = hasToken,
+            TelegramChatId = s.TelegramChatId,
+            ShortTextMaxChars = s.ShortTextMaxChars,
+            TextBlockMaxChars = s.TextBlockMaxChars,
+            QuoteMaxChars = s.QuoteMaxChars,
+            TimelineDescriptionMaxChars = s.TimelineDescriptionMaxChars,
+            MemoryTextMaxChars = s.MemoryTextMaxChars,
+            ServiceDescriptionMaxChars = s.ServiceDescriptionMaxChars,
+            AwardDescriptionMaxChars = s.AwardDescriptionMaxChars,
+            PhotoCaptionMaxChars = s.PhotoCaptionMaxChars
+        };
+    }
 
     private static string Normalize(string? value) => (value ?? string.Empty).Trim();
 

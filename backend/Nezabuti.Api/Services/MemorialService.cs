@@ -12,7 +12,14 @@ namespace Nezabuti.Api.Services;
 public interface IMemorialService
 {
     Task<MemorialAdminDto> CreateAsync(CreateMemorialRequest request, CancellationToken ct = default);
-    Task<PagedResult<MemorialListItemDto>> ListAsync(string? search, MemorialStatus? status, bool? isDemo, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<MemorialListItemDto>> ListAsync(
+        string? search,
+        MemorialStatus? status,
+        bool? isDemo,
+        BillingFilter? billingFilter,
+        int page,
+        int pageSize,
+        CancellationToken ct = default);
     Task<MemorialAdminDto?> GetAdminAsync(string id, CancellationToken ct = default);
     Task<MemorialAdminDto?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default);
     Task<MemorialAdminDto?> AssignPlanAsync(string id, AssignPlanRequest request, CancellationToken ct = default);
@@ -37,6 +44,8 @@ public sealed class MemorialService : IMemorialService
     private readonly IPlanRepository _plans;
     private readonly IPlanLimitService _planLimits;
     private readonly ISiteSettingsRepository _settings;
+    private readonly ICustomerRepository _customers;
+    private readonly IBillingClock _billingClock;
     private readonly AppPublicSettings _app;
 
     public MemorialService(
@@ -46,6 +55,8 @@ public sealed class MemorialService : IMemorialService
         IPlanRepository plans,
         IPlanLimitService planLimits,
         ISiteSettingsRepository settings,
+        ICustomerRepository customers,
+        IBillingClock billingClock,
         IOptions<AppPublicSettings> app)
     {
         _repo = repo;
@@ -54,6 +65,8 @@ public sealed class MemorialService : IMemorialService
         _plans = plans;
         _planLimits = planLimits;
         _settings = settings;
+        _customers = customers;
+        _billingClock = billingClock;
         _app = app.Value;
     }
 
@@ -79,28 +92,32 @@ public sealed class MemorialService : IMemorialService
         var memorial = await _repo.CreateAsync(request, snapshot, ct);
         var settings = await _settings.GetAsync(ct);
         memorial.QrPriceDeltaSnapshot = MemorialPricing.GetQrPriceDelta(settings, memorial.QrPlateSize);
-        memorial.FinalPrice = MemorialPricing.CalculatePrice(snapshot.Price, memorial.QrPriceDeltaSnapshot);
+        memorial.FinalPrice = MemorialPricing.CalculatePrice(
+            snapshot.ResolveInitialPrice(),
+            memorial.QrPriceDeltaSnapshot);
         memorial.IsFinalPriceOverridden = false;
         memorial.PaymentStatus = PaymentStatus.Unpaid;
         memorial.PaidAt = null;
         await _repo.ReplaceAsync(memorial, ct);
 
         await _stats.EnsureExistsAsync(memorial, ct);
-        return MapAdmin(memorial);
+        return await MapAdminAsync(memorial, ct);
     }
 
     public async Task<PagedResult<MemorialListItemDto>> ListAsync(
         string? search,
         MemorialStatus? status,
         bool? isDemo,
+        BillingFilter? billingFilter,
         int page,
         int pageSize,
         CancellationToken ct = default)
     {
-        var (items, total) = await _repo.ListAsync(search, status, isDemo, page, pageSize, ct);
+        var (items, total) = await _repo.ListAsync(search, status, isDemo, billingFilter, page, pageSize, ct);
+        var customerMap = await LoadCustomerMapAsync(items.Select(i => i.CustomerId), ct);
         return new PagedResult<MemorialListItemDto>
         {
-            Items = items.Select(MapListItem).ToList(),
+            Items = items.Select(m => MapListItem(m, ResolveCustomer(customerMap, m.CustomerId))).ToList(),
             Total = total,
             Page = Math.Max(1, page),
             PageSize = Math.Clamp(pageSize, 1, 100)
@@ -110,7 +127,7 @@ public sealed class MemorialService : IMemorialService
     public async Task<MemorialAdminDto?> GetAdminAsync(string id, CancellationToken ct = default)
     {
         var memorial = await _repo.GetByIdAsync(id, ct);
-        return memorial is null ? null : MapAdmin(memorial);
+        return memorial is null ? null : await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default)
@@ -129,6 +146,22 @@ public sealed class MemorialService : IMemorialService
             throw new InvalidOperationException("Фінальна вартість не може бути від'ємною.");
         }
 
+        if (request.CustomerId is not null
+            && !string.IsNullOrWhiteSpace(request.CustomerId)
+            && !ObjectId.TryParse(request.CustomerId.Trim(), out _))
+        {
+            throw new InvalidOperationException("Некоректний ідентифікатор замовника.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.CustomerId))
+        {
+            var customer = await _customers.GetByIdAsync(request.CustomerId.Trim(), ct);
+            if (customer is null)
+            {
+                throw new InvalidOperationException("Замовника не знайдено.");
+            }
+        }
+
         var memorial = await _repo.UpdateAsync(id, request, ct);
         if (memorial is null)
         {
@@ -142,7 +175,7 @@ public sealed class MemorialService : IMemorialService
             if (!memorial.IsFinalPriceOverridden && memorial.PlanSnapshot is not null)
             {
                 memorial.FinalPrice = MemorialPricing.CalculatePrice(
-                    memorial.PlanSnapshot.Price,
+                    memorial.PlanSnapshot.ResolveInitialPrice(),
                     memorial.QrPriceDeltaSnapshot);
             }
 
@@ -157,7 +190,7 @@ public sealed class MemorialService : IMemorialService
                  && !request.FinalPrice.HasValue)
         {
             memorial.FinalPrice = MemorialPricing.CalculatePrice(
-                memorial.PlanSnapshot.Price,
+                memorial.PlanSnapshot.ResolveInitialPrice(),
                 memorial.QrPriceDeltaSnapshot);
             await _repo.ReplaceAsync(memorial, ct);
         }
@@ -179,7 +212,7 @@ public sealed class MemorialService : IMemorialService
             throw new InvalidOperationException(contentCheck.Error ?? "Перевищено технічні ліміти вмісту.");
         }
 
-        return MapAdmin(memorial);
+        return await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> AssignPlanAsync(string id, AssignPlanRequest request, CancellationToken ct = default)
@@ -216,11 +249,13 @@ public sealed class MemorialService : IMemorialService
 
         if (!memorial.IsFinalPriceOverridden)
         {
-            memorial.FinalPrice = MemorialPricing.CalculatePrice(snapshot.Price, memorial.QrPriceDeltaSnapshot);
+            memorial.FinalPrice = MemorialPricing.CalculatePrice(
+                snapshot.ResolveInitialPrice(),
+                memorial.QrPriceDeltaSnapshot);
             await _repo.ReplaceAsync(memorial, ct);
         }
 
-        return MapAdmin(memorial);
+        return await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> AdjustUpdatesAsync(string id, AdjustUpdatesRequest request, CancellationToken ct = default)
@@ -231,20 +266,20 @@ public sealed class MemorialService : IMemorialService
         }
 
         var memorial = await _repo.AdjustUsedUpdatesAsync(id, request.Delta, ct);
-        return memorial is null ? null : MapAdmin(memorial);
+        return memorial is null ? null : await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> UpdatePaymentAsync(string id, UpdatePaymentRequest request, CancellationToken ct = default)
     {
         DateTime? paidAt = request.PaymentStatus == PaymentStatus.Paid ? DateTime.UtcNow : null;
         var memorial = await _repo.UpdatePaymentAsync(id, request.PaymentStatus, paidAt, ct);
-        return memorial is null ? null : MapAdmin(memorial);
+        return memorial is null ? null : await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> ReorderBlocksAsync(string id, ReorderBlocksRequest request, CancellationToken ct = default)
     {
         var memorial = await _repo.ReorderBlocksAsync(id, request.BlockIds, ct);
-        return memorial is null ? null : MapAdmin(memorial);
+        return memorial is null ? null : await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> PublishAsync(string id, CancellationToken ct = default)
@@ -266,7 +301,7 @@ public sealed class MemorialService : IMemorialService
         }
 
         memorial = await _repo.SetStatusAsync(id, MemorialStatus.Published, ct);
-        return memorial is null ? null : MapAdmin(memorial);
+        return memorial is null ? null : await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> ArchiveAsync(string id, CancellationToken ct = default)
@@ -278,7 +313,7 @@ public sealed class MemorialService : IMemorialService
         }
 
         memorial = await _repo.SetStatusAsync(id, MemorialStatus.Archived, ct);
-        return memorial is null ? null : MapAdmin(memorial);
+        return memorial is null ? null : await MapAdminAsync(memorial, ct);
     }
 
     public async Task<MemorialAdminDto?> RestoreAsync(string id, CancellationToken ct = default)
@@ -295,7 +330,7 @@ public sealed class MemorialService : IMemorialService
         }
 
         memorial = await _repo.SetStatusAsync(id, MemorialStatus.Draft, ct);
-        return memorial is null ? null : MapAdmin(memorial);
+        return memorial is null ? null : await MapAdminAsync(memorial, ct);
     }
 
     public async Task<(bool Ok, string? Error)> PermanentDeleteAsync(string id, CancellationToken ct = default)
@@ -325,7 +360,18 @@ public sealed class MemorialService : IMemorialService
     public async Task<PublicMemorialDto?> GetPublicAsync(string publicId, CancellationToken ct = default)
     {
         var memorial = await _repo.GetByPublicIdAsync(publicId, ct);
-        if (memorial is null || memorial.Status != MemorialStatus.Published)
+        if (memorial is null
+            || memorial.Status is MemorialStatus.Archived or MemorialStatus.Draft)
+        {
+            return null;
+        }
+
+        if (memorial.Status == MemorialStatus.Suspended)
+        {
+            return MapPublicSuspended(memorial);
+        }
+
+        if (memorial.Status != MemorialStatus.Published)
         {
             return null;
         }
@@ -397,6 +443,7 @@ public sealed class MemorialService : IMemorialService
             QrPlateSize = previous.QrPlateSize,
             FinalPrice = previous.FinalPrice,
             IsFinalPriceOverridden = previous.IsFinalPriceOverridden,
+            CustomerId = previous.CustomerId,
             Blocks = previous.Blocks.OrderBy(b => b.Order).Select(MapBlock).ToList()
         };
         await _repo.UpdateAsync(previous.Id, restoreRequest, ct);
@@ -406,73 +453,161 @@ public sealed class MemorialService : IMemorialService
         await _repo.ReplaceAsync(previous, ct);
     }
 
-    private MemorialListItemDto MapListItem(Memorial m) => new()
+    private async Task<Dictionary<string, Customer>> LoadCustomerMapAsync(
+        IEnumerable<string?> customerIds,
+        CancellationToken ct)
     {
-        Id = m.Id,
-        PublicId = m.PublicId,
-        FullName = m.FullName,
-        Status = m.Status,
-        Privacy = m.Privacy,
-        IsDemo = m.IsDemo,
-        CreatedAt = m.CreatedAt,
-        UpdatedAt = m.UpdatedAt,
-        PublishedAt = m.PublishedAt,
-        ArchivedAt = m.ArchivedAt,
-        MainPhotoPreviewUrl = m.MainPhoto is null ? null : ToMediaUrl(m.MainPhoto.PreviewPath),
-        MainPhotoThumbUrl = m.MainPhoto is null ? null : ToMediaUrl(
-            string.IsNullOrWhiteSpace(m.MainPhoto.ThumbPath) ? m.MainPhoto.PreviewPath : m.MainPhoto.ThumbPath),
-        PlanName = m.PlanSnapshot?.Name,
-        PlanCode = m.PlanSnapshot?.Code,
-        PaymentStatus = m.PaymentStatus,
-        FinalPrice = MemorialPricing.ResolveFinalPrice(m)
-    };
+        var customers = await _customers.GetByIdsAsync(customerIds.Where(id => !string.IsNullOrWhiteSpace(id))!, ct);
+        return customers.ToDictionary(c => c.Id);
+    }
 
-    private MemorialAdminDto MapAdmin(Memorial m) => new()
-    {
-        Id = m.Id,
-        PublicId = m.PublicId,
-        PublicUrl = $"{_app.PublicBaseUrl.TrimEnd('/')}/m/{m.PublicId}",
-        FullName = m.FullName,
-        MainPhoto = m.MainPhoto is null ? null : MapPhoto(m.MainPhoto),
-        Status = m.Status,
-        Privacy = m.Privacy,
-        IsDemo = m.IsDemo,
-        Blocks = m.Blocks.OrderBy(b => b.Order).Select(MapBlock).ToList(),
-        Callsign = m.Callsign,
-        LifePeriod = m.LifePeriod,
-        ShortText = m.ShortText,
-        CreatedAt = m.CreatedAt,
-        UpdatedAt = m.UpdatedAt,
-        PublishedAt = m.PublishedAt,
-        ArchivedAt = m.ArchivedAt,
-        PlanSnapshot = m.PlanSnapshot is null ? null : MapSnapshot(m.PlanSnapshot),
-        UsedUpdates = m.UsedUpdates,
-        QrPlateSize = m.QrPlateSize,
-        QrPriceDeltaSnapshot = m.QrPriceDeltaSnapshot,
-        CalculatedPrice = MemorialPricing.ResolveCalculatedPrice(m),
-        FinalPrice = MemorialPricing.ResolveFinalPrice(m),
-        IsFinalPriceOverridden = m.IsFinalPriceOverridden,
-        PaymentStatus = m.PaymentStatus,
-        PaidAt = m.PaidAt,
-        Usage = _planLimits.GetUsage(m)
-    };
+    private static Customer? ResolveCustomer(IReadOnlyDictionary<string, Customer> map, string? customerId) =>
+        customerId is not null && map.TryGetValue(customerId, out var c) ? c : null;
 
-    private static PlanSnapshotDto MapSnapshot(PlanSnapshot s) => new()
+    private async Task<MemorialAdminDto> MapAdminAsync(Memorial m, CancellationToken ct)
     {
-        PlanId = s.PlanId,
-        Code = s.Code,
-        Name = s.Name,
-        Price = s.Price,
-        IsCustom = s.IsCustom,
-        IsUnlimited = s.IsUnlimited,
-        MaxBlocks = s.MaxBlocks,
-        MaxGalleryBlocks = s.MaxGalleryBlocks,
-        MaxPhotosPerGallery = s.MaxPhotosPerGallery,
-        MaxTimelineEvents = s.MaxTimelineEvents,
-        MaxMemories = s.MaxMemories,
-        IncludedUpdates = s.IncludedUpdates,
-        SnapshotAt = s.SnapshotAt
-    };
+        Customer? customer = null;
+        if (!string.IsNullOrWhiteSpace(m.CustomerId))
+        {
+            customer = await _customers.GetByIdAsync(m.CustomerId, ct);
+        }
+
+        return MapAdmin(m, customer);
+    }
+
+    private MemorialListItemDto MapListItem(Memorial m, Customer? customer)
+    {
+        var paymentState = BillingCalendar.ResolvePaymentState(m.PaidUntil, m.GraceUntil, _billingClock.TodayLocal);
+        return new()
+        {
+            Id = m.Id,
+            PublicId = m.PublicId,
+            FullName = m.FullName,
+            Status = m.Status,
+            Privacy = m.Privacy,
+            IsDemo = m.IsDemo,
+            CustomerId = m.CustomerId,
+            Customer = MapCustomerSummary(customer),
+            CreatedAt = m.CreatedAt,
+            UpdatedAt = m.UpdatedAt,
+            PublishedAt = m.PublishedAt,
+            ArchivedAt = m.ArchivedAt,
+            MainPhotoPreviewUrl = m.MainPhoto is null ? null : ToMediaUrl(m.MainPhoto.PreviewPath),
+            MainPhotoThumbUrl = m.MainPhoto is null ? null : ToMediaUrl(
+                string.IsNullOrWhiteSpace(m.MainPhoto.ThumbPath) ? m.MainPhoto.PreviewPath : m.MainPhoto.ThumbPath),
+            PlanName = m.PlanSnapshot?.Name,
+            PlanCode = m.PlanSnapshot?.Code,
+            PaymentStatus = m.PaymentStatus,
+            FinalPrice = MemorialPricing.ResolveFinalPrice(m),
+            PaidUntil = m.PaidUntil,
+            GraceUntil = m.GraceUntil,
+            LastPaymentAt = m.LastPaymentAt,
+            PaymentState = paymentState,
+            PaymentStateLabel = BillingCalendar.PaymentStateLabelUk(paymentState)
+        };
+    }
+
+    private MemorialAdminDto MapAdmin(Memorial m, Customer? customer)
+    {
+        var paymentState = BillingCalendar.ResolvePaymentState(m.PaidUntil, m.GraceUntil, _billingClock.TodayLocal);
+        return new()
+        {
+            Id = m.Id,
+            PublicId = m.PublicId,
+            PublicUrl = $"{_app.PublicBaseUrl.TrimEnd('/')}/m/{m.PublicId}",
+            FullName = m.FullName,
+            MainPhoto = m.MainPhoto is null ? null : MapPhoto(m.MainPhoto),
+            Status = m.Status,
+            Privacy = m.Privacy,
+            IsDemo = m.IsDemo,
+            CustomerId = m.CustomerId,
+            Customer = MapCustomerSummary(customer),
+            Blocks = m.Blocks.OrderBy(b => b.Order).Select(MapBlock).ToList(),
+            Callsign = m.Callsign,
+            LifePeriod = m.LifePeriod,
+            ShortText = m.ShortText,
+            CreatedAt = m.CreatedAt,
+            UpdatedAt = m.UpdatedAt,
+            PublishedAt = m.PublishedAt,
+            ArchivedAt = m.ArchivedAt,
+            PlanSnapshot = m.PlanSnapshot is null ? null : MapSnapshot(m.PlanSnapshot),
+            UsedUpdates = m.UsedUpdates,
+            QrPlateSize = m.QrPlateSize,
+            QrPriceDeltaSnapshot = m.QrPriceDeltaSnapshot,
+            CalculatedPrice = MemorialPricing.ResolveCalculatedPrice(m),
+            FinalPrice = MemorialPricing.ResolveFinalPrice(m),
+            IsFinalPriceOverridden = m.IsFinalPriceOverridden,
+            PaymentStatus = m.PaymentStatus,
+            PaidAt = m.PaidAt,
+            LastPaymentAt = m.LastPaymentAt,
+            PaidUntil = m.PaidUntil,
+            GraceUntil = m.GraceUntil,
+            PaymentState = paymentState,
+            PaymentStateLabel = BillingCalendar.PaymentStateLabelUk(paymentState),
+            Usage = _planLimits.GetUsage(m)
+        };
+    }
+
+    private static CustomerSummaryDto? MapCustomerSummary(Customer? c) =>
+        c is null
+            ? null
+            : new CustomerSummaryDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Phone = c.Phone
+            };
+
+    private static PlanSnapshotDto MapSnapshot(PlanSnapshot s)
+    {
+        var initial = s.ResolveInitialPrice();
+        return new()
+        {
+            PlanId = s.PlanId,
+            Code = s.Code,
+            Name = s.Name,
+            Price = initial,
+            InitialPrice = initial,
+            RenewalPrice = s.ResolveRenewalPrice(),
+            IsCustom = s.IsCustom,
+            IsUnlimited = s.IsUnlimited,
+            MaxBlocks = s.MaxBlocks,
+            MaxGalleryBlocks = s.MaxGalleryBlocks,
+            MaxPhotosPerGallery = s.MaxPhotosPerGallery,
+            MaxTimelineEvents = s.MaxTimelineEvents,
+            MaxMemories = s.MaxMemories,
+            IncludedUpdates = s.IncludedUpdates,
+            SnapshotAt = s.SnapshotAt
+        };
+    }
+
+    private PublicMemorialDto MapPublicSuspended(Memorial m)
+    {
+        var baseUrl = _app.PublicBaseUrl.TrimEnd('/');
+        var canonical = $"{baseUrl}/m/{m.PublicId}";
+        return new PublicMemorialDto
+        {
+            PublicId = m.PublicId,
+            FullName = m.FullName,
+            MainPhoto = null,
+            Privacy = m.Privacy,
+            IsDemo = m.IsDemo,
+            IsTemporarilyUnavailable = true,
+            Blocks = [],
+            Callsign = null,
+            LifePeriod = null,
+            ShortText = null,
+            PublishedAt = m.PublishedAt,
+            Seo = new SeoMetaDto
+            {
+                Title = "Сторінка тимчасово недоступна",
+                Description = "Ця меморіальна сторінка тимчасово недоступна.",
+                CanonicalUrl = canonical,
+                OgImageUrl = null,
+                Robots = "noindex,nofollow"
+            }
+        };
+    }
 
     private PublicMemorialDto MapPublic(Memorial m, bool includeEmptyBlocks = false, bool forAdminPreview = false)
     {
@@ -495,6 +630,7 @@ public sealed class MemorialService : IMemorialService
             MainPhoto = m.MainPhoto is null ? null : MapPhoto(m.MainPhoto),
             Privacy = m.Privacy,
             IsDemo = m.IsDemo,
+            IsTemporarilyUnavailable = false,
             Blocks = blocks,
             Callsign = m.Callsign,
             LifePeriod = m.LifePeriod,

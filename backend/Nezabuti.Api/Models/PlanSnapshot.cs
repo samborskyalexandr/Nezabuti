@@ -18,8 +18,17 @@ public class PlanSnapshot
     [BsonElement("name")]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Legacy; mirrors InitialPrice for older clients.</summary>
     [BsonElement("price")]
     public decimal Price { get; set; }
+
+    [BsonElement("initialPrice")]
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal InitialPrice { get; set; }
+
+    [BsonElement("renewalPrice")]
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal RenewalPrice { get; set; }
 
     [BsonElement("isCustom")]
     public bool IsCustom { get; set; }
@@ -47,4 +56,9 @@ public class PlanSnapshot
 
     [BsonElement("snapshotAt")]
     public DateTime SnapshotAt { get; set; }
+
+    public decimal ResolveInitialPrice() =>
+        InitialPrice > 0 ? InitialPrice : Price;
+
+    public decimal ResolveRenewalPrice() => RenewalPrice;
 }

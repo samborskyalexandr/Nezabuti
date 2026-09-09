@@ -29,7 +29,7 @@ public static class MemorialPricing
             return null;
         }
 
-        return CalculatePrice(memorial.PlanSnapshot.Price, memorial.QrPriceDeltaSnapshot);
+        return CalculatePrice(memorial.PlanSnapshot.ResolveInitialPrice(), memorial.QrPriceDeltaSnapshot);
     }
 
     public static decimal? ResolveCalculatedPrice(Memorial memorial)
@@ -39,6 +39,20 @@ public static class MemorialPricing
             return null;
         }
 
-        return CalculatePrice(memorial.PlanSnapshot.Price, memorial.QrPriceDeltaSnapshot);
+        return CalculatePrice(memorial.PlanSnapshot.ResolveInitialPrice(), memorial.QrPriceDeltaSnapshot);
     }
+
+    public static decimal ResolveDefaultInitialAmount(Memorial memorial)
+    {
+        if (memorial.FinalPrice.HasValue)
+        {
+            return memorial.FinalPrice.Value;
+        }
+
+        var initial = memorial.PlanSnapshot?.ResolveInitialPrice() ?? 0m;
+        return CalculatePrice(initial, memorial.QrPriceDeltaSnapshot);
+    }
+
+    public static decimal ResolveDefaultRenewalAmount(Memorial memorial) =>
+        memorial.PlanSnapshot?.ResolveRenewalPrice() ?? 0m;
 }

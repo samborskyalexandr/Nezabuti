@@ -90,7 +90,7 @@ import {
         <div class="mx-auto max-w-3xl">
           <h2 class="font-serif text-3xl md:text-4xl">Тарифні плани</h2>
           <p class="mt-5 font-sans text-lg leading-relaxed text-memorial-ink/90">
-            Пам’ять, Історія або Спадщина — оберіть формат сторінки. Створена сторінка залишається з вами назавжди.
+            Пам’ять, Історія або Спадщина — оберіть формат сторінки. Перший рік включено в створення; надалі — щорічне продовження.
           </p>
           <div class="mt-8">
             <a

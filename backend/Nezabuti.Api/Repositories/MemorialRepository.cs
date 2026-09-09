@@ -17,9 +17,11 @@ public interface IMemorialRepository
         string? search,
         MemorialStatus? status,
         bool? isDemo,
+        BillingFilter? billingFilter,
         int page,
         int pageSize,
         CancellationToken ct = default);
+    Task<List<Memorial>> ListBillingCandidatesAsync(CancellationToken ct = default);
     Task<Memorial?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default);
     Task<Memorial?> UpdatePlanSnapshotAsync(string id, PlanSnapshot snapshot, CancellationToken ct = default);
     Task<Memorial?> AdjustUsedUpdatesAsync(string id, int delta, CancellationToken ct = default);
@@ -70,7 +72,7 @@ public sealed class MemorialRepository : IMemorialRepository
             QrPlateSize = QrPlateSize.Size50,
             QrPriceDeltaSnapshot = 0,
             PaymentStatus = PaymentStatus.Unpaid,
-            FinalPrice = snapshot.Price,
+            FinalPrice = snapshot.ResolveInitialPrice(),
             IsFinalPriceOverridden = false,
             PaidAt = null,
             CreatedAt = now,
@@ -118,6 +120,7 @@ public sealed class MemorialRepository : IMemorialRepository
         string? search,
         MemorialStatus? status,
         bool? isDemo,
+        BillingFilter? billingFilter,
         int page,
         int pageSize,
         CancellationToken ct = default)
@@ -151,6 +154,11 @@ public sealed class MemorialRepository : IMemorialRepository
                 Builders<Memorial>.Filter.Regex(m => m.Callsign!, regex));
         }
 
+        if (billingFilter.HasValue)
+        {
+            filter &= BuildBillingFilter(billingFilter.Value);
+        }
+
         var total = await _db.Memorials.CountDocumentsAsync(filter, cancellationToken: ct);
         var items = await _db.Memorials.Find(filter)
             .SortByDescending(m => m.UpdatedAt)
@@ -159,6 +167,17 @@ public sealed class MemorialRepository : IMemorialRepository
             .ToListAsync(ct);
 
         return (items, total);
+    }
+
+    public Task<List<Memorial>> ListBillingCandidatesAsync(CancellationToken ct = default)
+    {
+        var filter = Builders<Memorial>.Filter.And(
+            Builders<Memorial>.Filter.Ne(m => m.IsDemo, true),
+            Builders<Memorial>.Filter.Ne(m => m.Status, MemorialStatus.Archived),
+            Builders<Memorial>.Filter.Ne(m => m.PaidUntil, null),
+            Builders<Memorial>.Filter.Ne(m => m.GraceUntil, null));
+
+        return _db.Memorials.Find(filter).ToListAsync(ct);
     }
 
     public async Task<Memorial?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default)
@@ -194,6 +213,13 @@ public sealed class MemorialRepository : IMemorialRepository
             }
 
             existing.FinalPrice = request.FinalPrice.Value;
+        }
+
+        if (request.CustomerId is not null)
+        {
+            existing.CustomerId = string.IsNullOrWhiteSpace(request.CustomerId)
+                ? null
+                : request.CustomerId.Trim();
         }
 
         existing.UpdatedAt = DateTime.UtcNow;
@@ -327,6 +353,9 @@ public sealed class MemorialRepository : IMemorialRepository
             case MemorialStatus.Draft:
                 existing.ArchivedAt = null;
                 break;
+            case MemorialStatus.Suspended:
+                existing.ArchivedAt = null;
+                break;
         }
 
         await _db.Memorials.ReplaceOneAsync(m => m.Id == id, existing, cancellationToken: ct);
@@ -348,6 +377,35 @@ public sealed class MemorialRepository : IMemorialRepository
     public async Task<bool> PublicIdExistsAsync(string publicId, CancellationToken ct = default)
     {
         return await _db.Memorials.Find(m => m.PublicId == publicId).AnyAsync(ct);
+    }
+
+    private static FilterDefinition<Memorial> BuildBillingFilter(BillingFilter billingFilter)
+    {
+        var today = DateTime.UtcNow.Date;
+        var fb = Builders<Memorial>.Filter;
+
+        return billingFilter switch
+        {
+            BillingFilter.Suspended => fb.Eq(m => m.Status, MemorialStatus.Suspended),
+            BillingFilter.Grace => fb.And(
+                fb.Ne(m => m.PaidUntil, null),
+                fb.Ne(m => m.GraceUntil, null),
+                fb.Lt(m => m.PaidUntil, today),
+                fb.Gte(m => m.GraceUntil, today)),
+            BillingFilter.Expired => fb.And(
+                fb.Ne(m => m.Status, MemorialStatus.Suspended),
+                fb.Ne(m => m.GraceUntil, null),
+                fb.Lt(m => m.GraceUntil, today)),
+            BillingFilter.EndingIn7 => fb.And(
+                fb.Ne(m => m.PaidUntil, null),
+                fb.Gte(m => m.PaidUntil, today),
+                fb.Lte(m => m.PaidUntil, today.AddDays(7))),
+            BillingFilter.EndingIn30 => fb.And(
+                fb.Ne(m => m.PaidUntil, null),
+                fb.Gte(m => m.PaidUntil, today),
+                fb.Lte(m => m.PaidUntil, today.AddDays(30))),
+            _ => fb.Empty
+        };
     }
 
     private List<MemorialBlock> MapBlocks(IEnumerable<MemorialBlockDto> blocks)

@@ -16,6 +16,7 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSett
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection(AdminSettings.SectionName));
 builder.Services.Configure<AppPublicSettings>(builder.Configuration.GetSection(AppPublicSettings.SectionName));
 builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(ImageSettings.SectionName));
+builder.Services.Configure<BillingSettings>(builder.Configuration.GetSection(BillingSettings.SectionName));
 
 // Also bind from flat env-friendly keys used in docker-compose
 builder.Services.PostConfigure<MongoSettings>(opts =>
@@ -37,6 +38,7 @@ builder.Services.PostConfigure<AdminSettings>(opts =>
 builder.Services.PostConfigure<AppPublicSettings>(opts =>
 {
     opts.PublicBaseUrl = builder.Configuration["PUBLIC_BASE_URL"] ?? opts.PublicBaseUrl;
+    opts.AdminBasePath = builder.Configuration["ADMIN_BASE_PATH"] ?? opts.AdminBasePath;
     var origins = builder.Configuration["ALLOWED_ORIGINS"];
     if (!string.IsNullOrWhiteSpace(origins))
     {
@@ -71,6 +73,20 @@ builder.Services.PostConfigure<ImageSettings>(opts =>
     }
 
     opts.UploadsRoot = builder.Configuration["UPLOADS_ROOT"] ?? opts.UploadsRoot;
+});
+
+builder.Services.PostConfigure<BillingSettings>(opts =>
+{
+    if (int.TryParse(builder.Configuration["BILLING_DAILY_RUN_HOUR"], out var hour) && hour is >= 0 and <= 23)
+    {
+        opts.DailyRunHour = hour;
+    }
+
+    var tz = builder.Configuration["BILLING_TIME_ZONE_ID"];
+    if (!string.IsNullOrWhiteSpace(tz))
+    {
+        opts.TimeZoneId = tz.Trim();
+    }
 });
 
 var jwtSecret = builder.Configuration["JWT_SECRET"]
@@ -134,20 +150,31 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IBillingClock, BillingClock>();
 builder.Services.AddSingleton<IMongoContext, MongoContext>();
 builder.Services.AddSingleton<IPublicIdGenerator, PublicIdGenerator>();
 builder.Services.AddSingleton<IRichTextSanitizer, RichTextSanitizer>();
+builder.Services.AddSingleton<ISecretEncryptionService, SecretEncryptionService>();
+builder.Services.AddHttpClient(nameof(TelegramAdminNotifyService));
 builder.Services.AddScoped<IMemorialRepository, MemorialRepository>();
 builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
 builder.Services.AddScoped<IPlanRepository, PlanRepository>();
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+builder.Services.AddScoped<IMemorialPaymentRepository, MemorialPaymentRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 builder.Services.AddScoped<IQrCodeService, QrCodeService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 builder.Services.AddScoped<IPlanLimitService, PlanLimitService>();
 builder.Services.AddScoped<IPlanService, PlanService>();
+builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IMemorialService, MemorialService>();
+builder.Services.AddScoped<IMemorialBillingService, MemorialBillingService>();
+builder.Services.AddScoped<IMemorialBillingJobService, MemorialBillingJobService>();
+builder.Services.AddScoped<ITelegramAdminNotifyService, TelegramAdminNotifyService>();
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
+builder.Services.AddHostedService<BillingBackgroundService>();
 
 builder.Services.AddHealthChecks()
     .AddCheck<Nezabuti.Api.Health.MongoHealthCheck>("mongodb");

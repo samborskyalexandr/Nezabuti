@@ -44,15 +44,24 @@ import { Plan } from '../../../core/models/memorial.models';
 
               <div class="grid gap-3 sm:grid-cols-2">
                 <label class="block font-sans text-sm">
-                  Ціна (грн)
+                  Перший рік (грн)
                   <input
                     type="number"
                     class="mt-1 w-full border border-memorial-line px-3 py-2"
-                    [(ngModel)]="plan.price"
-                    [name]="'price-' + plan.id"
+                    [(ngModel)]="plan.initialPrice"
+                    [name]="'initial-' + plan.id"
                   />
                 </label>
                 <label class="block font-sans text-sm">
+                  Продовження / рік (грн)
+                  <input
+                    type="number"
+                    class="mt-1 w-full border border-memorial-line px-3 py-2"
+                    [(ngModel)]="plan.renewalPrice"
+                    [name]="'renewal-' + plan.id"
+                  />
+                </label>
+                <label class="block font-sans text-sm sm:col-span-2">
                   Включені оновлення
                   <input
                     type="number"
@@ -134,7 +143,11 @@ export class AdminPlansPageComponent implements OnInit {
   ngOnInit(): void {
     this.api.listPlans().subscribe({
       next: (plans) => {
-        this.plans = plans;
+        this.plans = plans.map((p) => ({
+          ...p,
+          initialPrice: p.initialPrice ?? p.price ?? 0,
+          renewalPrice: p.renewalPrice ?? p.initialPrice ?? p.price ?? 0
+        }));
         this.loading = false;
       },
       error: () => {
@@ -148,11 +161,15 @@ export class AdminPlansPageComponent implements OnInit {
     this.savingId = plan.id;
     this.messages[plan.id] = '';
     this.errors[plan.id] = '';
+    const initialPrice = Number(plan.initialPrice) || 0;
+    const renewalPrice = Number(plan.renewalPrice) || 0;
     this.api
       .updatePlan(plan.id, {
         name: plan.name,
         description: plan.description,
-        price: Number(plan.price) || 0,
+        price: initialPrice,
+        initialPrice,
+        renewalPrice,
         isActive: plan.isActive,
         isUnlimited: plan.isUnlimited,
         maxBlocks: plan.maxBlocks,
@@ -166,7 +183,11 @@ export class AdminPlansPageComponent implements OnInit {
         next: (updated) => {
           const idx = this.plans.findIndex((p) => p.id === plan.id);
           if (idx >= 0) {
-            this.plans[idx] = updated;
+            this.plans[idx] = {
+              ...updated,
+              initialPrice: updated.initialPrice ?? updated.price ?? 0,
+              renewalPrice: updated.renewalPrice ?? updated.initialPrice ?? updated.price ?? 0
+            };
           }
           this.savingId = null;
           this.messages[plan.id] = 'Збережено';

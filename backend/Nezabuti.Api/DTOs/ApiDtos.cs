@@ -46,7 +46,10 @@ public class CreateMemorialRequest
 
 public class CustomPlanOverridesDto
 {
+    /// <summary>Legacy alias for InitialPrice.</summary>
     public decimal? Price { get; set; }
+    public decimal? InitialPrice { get; set; }
+    public decimal? RenewalPrice { get; set; }
     public bool? IsUnlimited { get; set; }
     public int? MaxBlocks { get; set; }
     public int? MaxGalleryBlocks { get; set; }
@@ -84,12 +87,31 @@ public class UpdateMemorialRequest
 
     public bool? IsFinalPriceOverridden { get; set; }
 
+    public string? CustomerId { get; set; }
+
     public List<MemorialBlockDto> Blocks { get; set; } = [];
 }
 
 public class UpdatePaymentRequest
 {
     public PaymentStatus PaymentStatus { get; set; }
+}
+
+public class ConfirmPaymentRequest
+{
+    public decimal? Amount { get; set; }
+    public string? Note { get; set; }
+    /// <summary>Initial or Renewal (optional when using dedicated endpoints).</summary>
+    public MemorialPaymentType? Type { get; set; }
+}
+
+public enum BillingFilter
+{
+    EndingIn30 = 0,
+    EndingIn7 = 1,
+    Grace = 2,
+    Expired = 3,
+    Suspended = 4
 }
 
 public class MemorialBlockDto
@@ -119,6 +141,8 @@ public class MemorialListItemDto
     public MemorialStatus Status { get; set; }
     public MemorialPrivacy Privacy { get; set; }
     public bool IsDemo { get; set; }
+    public string? CustomerId { get; set; }
+    public CustomerSummaryDto? Customer { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? PublishedAt { get; set; }
@@ -129,6 +153,11 @@ public class MemorialListItemDto
     public string? PlanCode { get; set; }
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
     public decimal? FinalPrice { get; set; }
+    public DateTime? PaidUntil { get; set; }
+    public DateTime? GraceUntil { get; set; }
+    public DateTime? LastPaymentAt { get; set; }
+    public PaymentState PaymentState { get; set; } = PaymentState.Unconfigured;
+    public string PaymentStateLabel { get; set; } = string.Empty;
 }
 
 public class MemorialAdminDto
@@ -142,6 +171,8 @@ public class MemorialAdminDto
     public MemorialStatus Status { get; set; }
     public MemorialPrivacy Privacy { get; set; }
     public bool IsDemo { get; set; }
+    public string? CustomerId { get; set; }
+    public CustomerSummaryDto? Customer { get; set; }
     public List<MemorialBlockDto> Blocks { get; set; } = [];
     public string? Callsign { get; set; }
     public string? LifePeriod { get; set; }
@@ -159,6 +190,11 @@ public class MemorialAdminDto
     public bool IsFinalPriceOverridden { get; set; }
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
     public DateTime? PaidAt { get; set; }
+    public DateTime? LastPaymentAt { get; set; }
+    public DateTime? PaidUntil { get; set; }
+    public DateTime? GraceUntil { get; set; }
+    public PaymentState PaymentState { get; set; } = PaymentState.Unconfigured;
+    public string PaymentStateLabel { get; set; } = string.Empty;
     public PlanUsageDto? Usage { get; set; }
 }
 
@@ -167,7 +203,10 @@ public class PlanSnapshotDto
     public string PlanId { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    /// <summary>Legacy alias of InitialPrice.</summary>
     public decimal Price { get; set; }
+    public decimal InitialPrice { get; set; }
+    public decimal RenewalPrice { get; set; }
     public bool IsCustom { get; set; }
     public bool IsUnlimited { get; set; }
     public int? MaxBlocks { get; set; }
@@ -185,7 +224,10 @@ public class PlanDto
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    /// <summary>Legacy alias of InitialPrice.</summary>
     public decimal Price { get; set; }
+    public decimal InitialPrice { get; set; }
+    public decimal RenewalPrice { get; set; }
     public bool IsActive { get; set; }
     public bool IsCustom { get; set; }
     public bool IsUnlimited { get; set; }
@@ -204,7 +246,10 @@ public class UpdatePlanRequest
     public string Name { get; set; } = string.Empty;
 
     public string? Description { get; set; }
+    /// <summary>Legacy; used when InitialPrice is 0.</summary>
     public decimal Price { get; set; }
+    public decimal InitialPrice { get; set; }
+    public decimal RenewalPrice { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsUnlimited { get; set; }
     public int? MaxBlocks { get; set; }
@@ -235,7 +280,10 @@ public class PublicPlanDto
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    /// <summary>Legacy alias of InitialPrice.</summary>
     public decimal Price { get; set; }
+    public decimal InitialPrice { get; set; }
+    public decimal RenewalPrice { get; set; }
     public int? MaxGalleryBlocks { get; set; }
     public int? MaxPhotosPerGallery { get; set; }
     public int? MaxTimelineEvents { get; set; }
@@ -261,6 +309,8 @@ public class PublicMemorialDto
     public PhotoRefDto? MainPhoto { get; set; }
     public MemorialPrivacy Privacy { get; set; }
     public bool IsDemo { get; set; }
+    /// <summary>True when publication is Suspended — content blocks are omitted.</summary>
+    public bool IsTemporarilyUnavailable { get; set; }
     public List<MemorialBlockDto> Blocks { get; set; } = [];
     public string? Callsign { get; set; }
     public string? LifePeriod { get; set; }
@@ -324,6 +374,10 @@ public class SiteSettingsDto
     public decimal QrSize50PriceDelta { get; set; }
     public decimal QrSize75PriceDelta { get; set; }
     public decimal QrSize100PriceDelta { get; set; }
+    public bool TelegramNotifyEnabled { get; set; }
+    public string TelegramBotTokenMasked { get; set; } = string.Empty;
+    public bool HasTelegramBotToken { get; set; }
+    public string? TelegramChatId { get; set; }
     public int ShortTextMaxChars { get; set; }
     public int TextBlockMaxChars { get; set; }
     public int QuoteMaxChars { get; set; }
@@ -343,6 +397,10 @@ public class UpdateSiteSettingsRequest
     public decimal? QrSize50PriceDelta { get; set; }
     public decimal? QrSize75PriceDelta { get; set; }
     public decimal? QrSize100PriceDelta { get; set; }
+    public bool? TelegramNotifyEnabled { get; set; }
+    /// <summary>Write-only; omit or empty to keep existing token.</summary>
+    public string? TelegramBotToken { get; set; }
+    public string? TelegramChatId { get; set; }
     public int? ShortTextMaxChars { get; set; }
     public int? TextBlockMaxChars { get; set; }
     public int? QuoteMaxChars { get; set; }
@@ -358,4 +416,85 @@ public class PublicSiteSettingsDto
     public string Phone { get; set; } = string.Empty;
     public string Telegram { get; set; } = string.Empty;
     public string Viber { get; set; } = string.Empty;
+}
+
+public class CustomerDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? TelegramUsername { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public class CustomerSummaryDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+}
+
+public class CreateCustomerRequest
+{
+    [Required]
+    [MaxLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(50)]
+    public string Phone { get; set; } = string.Empty;
+
+    [MaxLength(200)]
+    public string? Email { get; set; }
+
+    [MaxLength(100)]
+    public string? TelegramUsername { get; set; }
+
+    [MaxLength(2000)]
+    public string? Notes { get; set; }
+}
+
+public class UpdateCustomerRequest
+{
+    [Required]
+    [MaxLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(50)]
+    public string Phone { get; set; } = string.Empty;
+
+    [MaxLength(200)]
+    public string? Email { get; set; }
+
+    [MaxLength(100)]
+    public string? TelegramUsername { get; set; }
+
+    [MaxLength(2000)]
+    public string? Notes { get; set; }
+}
+
+public class MemorialPaymentDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string MemorialId { get; set; } = string.Empty;
+    public string? CustomerId { get; set; }
+    public decimal Amount { get; set; }
+    public DateTime PaidAt { get; set; }
+    public DateTime PeriodFrom { get; set; }
+    public DateTime PeriodTo { get; set; }
+    public MemorialPaymentType Type { get; set; }
+    public MemorialPaymentMethod Method { get; set; }
+    public string? Note { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class TelegramTestResultDto
+{
+    public bool Ok { get; set; }
+    public string Message { get; set; } = string.Empty;
 }

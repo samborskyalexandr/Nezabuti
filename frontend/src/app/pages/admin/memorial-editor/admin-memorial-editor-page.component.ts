@@ -5,10 +5,13 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import {
   BLOCK_TYPE_LABELS,
+  Customer,
   MemorialAdmin,
   MemorialBlock,
+  MemorialPayment,
   MemorialStatistics,
-  PAYMENT_STATUS_LABELS,
+  PAYMENT_STATE_LABELS,
+  PAYMENT_TYPE_LABELS,
   PRIVACY_LABELS,
   PhotoRef,
   Plan,
@@ -18,7 +21,9 @@ import {
   STATUS_LABELS,
   SiteSettings,
   createEmptyBlockData,
-  isBlockEmpty
+  isBlockEmpty,
+  resolveInitialPrice,
+  resolveRenewalPrice
 } from '../../../core/models/memorial.models';
 import { calculatedPriceFor, qrPriceDeltaFromSettings } from '../../../core/utils/memorial-pricing';
 import { computePlanUsage, countGalleryPhotos } from '../../../core/utils/plan-usage-calculator';
@@ -47,11 +52,28 @@ export class AdminMemorialEditorPageComponent implements OnInit {
   qrBusy = false;
   dirty = false;
   showAddBlock = false;
+  /** Active editor tab: memorial content / plan limits / billing. */
+  editorTab: 'memorial' | 'plan' | 'billing' = 'memorial';
   expandedBlockId: string | null = null;
   assignPlanId = '';
   planBusy = false;
   updatesBusy = false;
   paymentBusy = false;
+  payments: MemorialPayment[] = [];
+  paymentsLoading = false;
+  selectedCustomer: Customer | null = null;
+  customerSearch = '';
+  customerResults: Customer[] = [];
+  customerSearchBusy = false;
+  showCreateCustomer = false;
+  newCustomerName = '';
+  newCustomerPhone = '';
+  newCustomerEmail = '';
+  customerBusy = false;
+  showConfirmBilling = false;
+  confirmKind: 'initial' | 'renewal' = 'initial';
+  confirmAmount: number | null = null;
+  confirmNote = '';
   /** Local draft of final price while editing; persisted on Save. */
   finalPriceDraft: number | null = null;
   /** QR delta after local size change, before Save. */
@@ -74,7 +96,8 @@ export class AdminMemorialEditorPageComponent implements OnInit {
   readonly listHref = adminUrl('memorials');
   readonly statusLabels = STATUS_LABELS;
   readonly privacyLabels = PRIVACY_LABELS;
-  readonly paymentLabels = PAYMENT_STATUS_LABELS;
+  readonly paymentStateLabels = PAYMENT_STATE_LABELS;
+  readonly paymentTypeLabels = PAYMENT_TYPE_LABELS;
   readonly blockTypeLabels = BLOCK_TYPE_LABELS;
   readonly blockTypes = Object.keys(BLOCK_TYPE_LABELS);
   readonly qrLabels = QR_PLATE_LABELS;
@@ -139,13 +162,137 @@ export class AdminMemorialEditorPageComponent implements OnInit {
   private applyMemorial(m: MemorialAdmin): void {
     m.isFinalPriceOverridden ??= false;
     m.paymentStatus ??= 'Unpaid';
+    m.paymentState ??= 'Unconfigured';
+    m.paymentStateLabel ??= this.paymentStateLabels[m.paymentState];
     m.qrPriceDeltaSnapshot ??= 0;
     m.isDemo ??= false;
+    if (m.planSnapshot) {
+      m.planSnapshot.initialPrice = resolveInitialPrice(m.planSnapshot);
+      m.planSnapshot.renewalPrice = resolveRenewalPrice(m.planSnapshot);
+      m.planSnapshot.price = m.planSnapshot.initialPrice;
+    }
     this.memorial = m;
     this.assignPlanId = m.planSnapshot?.planId || '';
     this.pendingQrDelta = null;
     this.syncEditorSignals(m);
     this.finalPriceDraft = m.finalPrice ?? this.liveCalculatedPrice;
+    this.loadCustomerDetails(m.customerId);
+    this.loadPayments(m.id);
+  }
+
+  private loadCustomerDetails(customerId?: string | null): void {
+    if (!customerId) {
+      this.selectedCustomer = this.memorial?.customer
+        ? {
+            id: this.memorial.customer.id,
+            name: this.memorial.customer.name,
+            phone: this.memorial.customer.phone
+          }
+        : null;
+      return;
+    }
+    this.api.getCustomer(customerId).subscribe({
+      next: (c) => (this.selectedCustomer = c),
+      error: () => {
+        this.selectedCustomer = this.memorial?.customer
+          ? {
+              id: this.memorial.customer.id,
+              name: this.memorial.customer.name,
+              phone: this.memorial.customer.phone
+            }
+          : null;
+      }
+    });
+  }
+
+  private loadPayments(memorialId: string): void {
+    this.paymentsLoading = true;
+    this.api.listMemorialPayments(memorialId).subscribe({
+      next: (list) => {
+        this.payments = list;
+        this.paymentsLoading = false;
+      },
+      error: () => {
+        this.payments = [];
+        this.paymentsLoading = false;
+      }
+    });
+  }
+
+  get needsInitialPayment(): boolean {
+    const m = this.memorial;
+    if (!m) {
+      return true;
+    }
+    return m.paymentState === 'Unconfigured' || !m.paidUntil;
+  }
+
+  get planInitialPrice(): number {
+    return resolveInitialPrice(this.memorial?.planSnapshot);
+  }
+
+  get planRenewalPrice(): number {
+    return resolveRenewalPrice(this.memorial?.planSnapshot);
+  }
+
+  get confirmPeriodLabel(): string {
+    const preview = this.confirmBillingPreview;
+    if (!preview) {
+      return '—';
+    }
+    return `${this.formatBillingDate(preview.periodFrom)} — ${this.formatBillingDate(preview.paidUntil)}`;
+  }
+
+  get confirmBillingPreview(): {
+    paymentDate: Date;
+    periodFrom: Date;
+    paidUntil: Date;
+    graceUntil: Date;
+  } | null {
+    const paymentDate = this.startOfLocalDay(new Date());
+    if (this.confirmKind === 'initial') {
+      const paidUntil = this.addYears(paymentDate, 1);
+      return {
+        paymentDate,
+        periodFrom: paymentDate,
+        paidUntil,
+        graceUntil: this.addMonths(paidUntil, 1)
+      };
+    }
+    const previous = this.memorial?.paidUntil ? this.startOfLocalDay(new Date(this.memorial.paidUntil)) : null;
+    if (!previous || Number.isNaN(previous.getTime())) {
+      return null;
+    }
+    const periodFrom = previous.getTime() >= paymentDate.getTime() ? previous : paymentDate;
+    const paidUntil = this.addYears(periodFrom, 1);
+    return {
+      paymentDate,
+      periodFrom,
+      paidUntil,
+      graceUntil: this.addMonths(paidUntil, 1)
+    };
+  }
+
+  formatBillingDate(d: Date): string {
+    return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  private startOfLocalDay(d: Date): Date {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  }
+
+  private addYears(d: Date, years: number): Date {
+    const x = new Date(d);
+    x.setFullYear(x.getFullYear() + years);
+    return x;
+  }
+
+  private addMonths(d: Date, months: number): Date {
+    const x = new Date(d);
+    x.setMonth(x.getMonth() + months);
+    return x;
   }
 
   private syncEditorSignals(m: MemorialAdmin): void {
@@ -270,6 +417,7 @@ export class AdminMemorialEditorPageComponent implements OnInit {
       qrPlateSize: m.qrPlateSize,
       finalPrice: this.finalPriceDraft ?? m.finalPrice ?? null,
       isFinalPriceOverridden: m.isFinalPriceOverridden,
+      customerId: m.customerId ?? null,
       blocks: this.blocks()
         .map((b, index) => ({ id: b.id, type: b.type, order: index, data: b.data }))
         .filter((b) => !isBlockEmpty(b.type, b.data))
@@ -303,8 +451,11 @@ export class AdminMemorialEditorPageComponent implements OnInit {
       return;
     }
 
-    if (this.memorial.paymentStatus === 'Unpaid' && !this.memorial.isDemo) {
-      if (!confirm('Меморіал ще не позначений як оплачений. Все одно опублікувати?')) {
+    const unpaidBilling =
+      !this.memorial.isDemo &&
+      (this.memorial.paymentState === 'Unconfigured' || this.memorial.paymentState === 'Expired');
+    if (unpaidBilling) {
+      if (!confirm('Оплату не налаштовано або прострочено. Все одно опублікувати?')) {
         return;
       }
     }
@@ -827,43 +978,132 @@ export class AdminMemorialEditorPageComponent implements OnInit {
     });
   }
 
-  markPaid(): void {
-    if (!this.memorial || this.paymentBusy || this.isArchived) {
+  searchCustomers(): void {
+    const q = this.customerSearch.trim();
+    if (!q) {
+      this.customerResults = [];
       return;
     }
-    this.paymentBusy = true;
-    this.api.updatePayment(this.memorial.id, 'Paid').subscribe({
-      next: (m) => {
-        this.applyMemorial(m);
-        this.paymentBusy = false;
-        this.message = 'Позначено як оплачено';
-        this.error = '';
+    this.customerSearchBusy = true;
+    this.api.listCustomers({ search: q, pageSize: 10 }).subscribe({
+      next: (r) => {
+        this.customerResults = r.items;
+        this.customerSearchBusy = false;
       },
-      error: (err) => {
-        this.paymentBusy = false;
-        this.error = err?.error?.message || 'Не вдалося оновити статус оплати';
+      error: () => {
+        this.customerResults = [];
+        this.customerSearchBusy = false;
       }
     });
   }
 
-  markUnpaid(): void {
+  selectCustomer(customer: Customer): void {
+    if (!this.memorial || this.isArchived) {
+      return;
+    }
+    this.memorial.customerId = customer.id;
+    this.memorial.customer = { id: customer.id, name: customer.name, phone: customer.phone };
+    this.selectedCustomer = customer;
+    this.customerResults = [];
+    this.customerSearch = '';
+    this.markDirty();
+  }
+
+  clearCustomer(): void {
+    if (!this.memorial || this.isArchived) {
+      return;
+    }
+    this.memorial.customerId = null;
+    this.memorial.customer = null;
+    this.selectedCustomer = null;
+    this.markDirty();
+  }
+
+  openCreateCustomer(): void {
+    this.showCreateCustomer = true;
+    this.newCustomerName = '';
+    this.newCustomerPhone = '';
+    this.newCustomerEmail = '';
+  }
+
+  createAndAssignCustomer(): void {
+    if (!this.memorial || this.customerBusy || this.isArchived) {
+      return;
+    }
+    if (!this.newCustomerName.trim() || !this.newCustomerPhone.trim()) {
+      this.error = 'Вкажіть ім’я та телефон замовника.';
+      return;
+    }
+    this.customerBusy = true;
+    this.api
+      .createCustomer({
+        name: this.newCustomerName.trim(),
+        phone: this.newCustomerPhone.trim(),
+        email: this.newCustomerEmail.trim() || null
+      })
+      .subscribe({
+        next: (c) => {
+          this.customerBusy = false;
+          this.showCreateCustomer = false;
+          this.selectCustomer(c);
+          this.message = 'Замовника створено';
+          this.error = '';
+        },
+        error: (err) => {
+          this.customerBusy = false;
+          this.error = err?.error?.message || 'Не вдалося створити замовника';
+        }
+      });
+  }
+
+  openConfirmBilling(kind: 'initial' | 'renewal'): void {
+    if (!this.memorial || this.isArchived) {
+      return;
+    }
+    this.confirmKind = kind;
+    this.confirmNote = '';
+    if (kind === 'initial') {
+      this.confirmAmount = this.displayFinalPrice ?? this.planInitialPrice + this.liveQrDelta;
+    } else {
+      this.confirmAmount = this.planRenewalPrice;
+    }
+    this.showConfirmBilling = true;
+  }
+
+  closeConfirmBilling(): void {
+    if (this.paymentBusy) {
+      return;
+    }
+    this.showConfirmBilling = false;
+  }
+
+  submitConfirmBilling(): void {
     if (!this.memorial || this.paymentBusy || this.isArchived) {
       return;
     }
-    if (!confirm('Позначити меморіал як неоплачений?')) {
-      return;
-    }
     this.paymentBusy = true;
-    this.api.updatePayment(this.memorial.id, 'Unpaid').subscribe({
+    this.error = '';
+    const body = {
+      amount: this.confirmAmount == null || Number.isNaN(Number(this.confirmAmount)) ? null : Number(this.confirmAmount),
+      note: this.confirmNote.trim() || null
+    };
+    const req =
+      this.confirmKind === 'initial'
+        ? this.api.confirmInitialPayment(this.memorial.id, body)
+        : this.api.confirmRenewalPayment(this.memorial.id, body);
+    req.subscribe({
       next: (m) => {
+        this.editorTab = 'billing';
         this.applyMemorial(m);
         this.paymentBusy = false;
-        this.message = 'Позначено як неоплачений';
-        this.error = '';
+        this.showConfirmBilling = false;
+        this.message =
+          this.confirmKind === 'initial' ? 'Первинну оплату підтверджено' : 'Продовження на 1 рік підтверджено';
       },
       error: (err) => {
         this.paymentBusy = false;
-        this.error = err?.error?.message || 'Не вдалося оновити статус оплати';
+        this.editorTab = 'billing';
+        this.error = err?.error?.message || 'Не вдалося підтвердити оплату';
       }
     });
   }

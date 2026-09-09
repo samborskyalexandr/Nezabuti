@@ -2,10 +2,13 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  BillingFilter,
+  Customer,
   CustomPlanOverrides,
   LoginResponse,
   MemorialAdmin,
   MemorialListItem,
+  MemorialPayment,
   MemorialStatistics,
   MemorialStatus,
   PagedResult,
@@ -15,7 +18,9 @@ import {
   PublicPlan,
   PublicSiteSettings,
   QrPlateSize,
-  SiteSettings
+  SiteSettings,
+  TelegramTestResult,
+  UpdateSiteSettingsBody
 } from '../models/memorial.models';
 
 @Injectable({ providedIn: 'root' })
@@ -38,6 +43,7 @@ export class ApiService {
     search?: string;
     status?: MemorialStatus;
     isDemo?: boolean;
+    billingFilter?: BillingFilter;
     page?: number;
     pageSize?: number;
   }): Observable<PagedResult<MemorialListItem>> {
@@ -52,6 +58,9 @@ export class ApiService {
     }
     if (params.isDemo === true || params.isDemo === false) {
       httpParams = httpParams.set('isDemo', String(params.isDemo));
+    }
+    if (params.billingFilter) {
+      httpParams = httpParams.set('billingFilter', params.billingFilter);
     }
     return this.http.get<PagedResult<MemorialListItem>>('/api/admin/memorials', { params: httpParams });
   }
@@ -99,6 +108,7 @@ export class ApiService {
       qrPlateSize?: QrPlateSize | null;
       finalPrice?: number | null;
       isFinalPriceOverridden?: boolean | null;
+      customerId?: string | null;
       blocks: { id?: string; type: string; order: number; data: Record<string, unknown> }[];
     }
   ): Observable<MemorialAdmin> {
@@ -107,6 +117,65 @@ export class ApiService {
 
   updatePayment(id: string, paymentStatus: 'Unpaid' | 'Paid'): Observable<MemorialAdmin> {
     return this.http.put<MemorialAdmin>(`/api/admin/memorials/${id}/payment`, { paymentStatus });
+  }
+
+  confirmInitialPayment(
+    id: string,
+    body: { amount?: number | null; note?: string | null } = {}
+  ): Observable<MemorialAdmin> {
+    return this.http.post<MemorialAdmin>(`/api/admin/memorials/${id}/billing/confirm-initial`, body);
+  }
+
+  confirmRenewalPayment(
+    id: string,
+    body: { amount?: number | null; note?: string | null } = {}
+  ): Observable<MemorialAdmin> {
+    return this.http.post<MemorialAdmin>(`/api/admin/memorials/${id}/billing/confirm-renewal`, body);
+  }
+
+  listMemorialPayments(id: string): Observable<MemorialPayment[]> {
+    return this.http.get<MemorialPayment[]>(`/api/admin/memorials/${id}/payments`);
+  }
+
+  listCustomers(params: {
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}): Observable<PagedResult<Customer>> {
+    let httpParams = new HttpParams()
+      .set('page', String(params.page ?? 1))
+      .set('pageSize', String(params.pageSize ?? 20));
+    if (params.search) {
+      httpParams = httpParams.set('search', params.search);
+    }
+    return this.http.get<PagedResult<Customer>>('/api/admin/customers', { params: httpParams });
+  }
+
+  getCustomer(id: string): Observable<Customer> {
+    return this.http.get<Customer>(`/api/admin/customers/${id}`);
+  }
+
+  createCustomer(body: {
+    name: string;
+    phone: string;
+    email?: string | null;
+    telegramUsername?: string | null;
+    notes?: string | null;
+  }): Observable<Customer> {
+    return this.http.post<Customer>('/api/admin/customers', body);
+  }
+
+  updateCustomer(
+    id: string,
+    body: {
+      name: string;
+      phone: string;
+      email?: string | null;
+      telegramUsername?: string | null;
+      notes?: string | null;
+    }
+  ): Observable<Customer> {
+    return this.http.put<Customer>(`/api/admin/customers/${id}`, body);
   }
 
   assignPlan(
@@ -173,7 +242,9 @@ export class ApiService {
     body: {
       name: string;
       description?: string | null;
-      price: number;
+      price?: number;
+      initialPrice: number;
+      renewalPrice: number;
       isActive: boolean;
       isUnlimited: boolean;
       maxBlocks?: number | null;
@@ -199,7 +270,11 @@ export class ApiService {
     return this.http.get<SiteSettings>('/api/admin/settings');
   }
 
-  updateAdminSettings(body: Partial<SiteSettings>): Observable<SiteSettings> {
+  updateAdminSettings(body: UpdateSiteSettingsBody): Observable<SiteSettings> {
     return this.http.put<SiteSettings>('/api/admin/settings', body);
+  }
+
+  testTelegramNotify(): Observable<TelegramTestResult> {
+    return this.http.post<TelegramTestResult>('/api/admin/settings/test-telegram', {});
   }
 }

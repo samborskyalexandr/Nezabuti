@@ -14,17 +14,20 @@ namespace Nezabuti.Api.Controllers;
 public class AdminMemorialsController : ControllerBase
 {
     private readonly IMemorialService _memorials;
+    private readonly IMemorialBillingService _billing;
     private readonly IStatisticsService _stats;
     private readonly IQrCodeService _qr;
     private readonly ImageSettings _imageSettings;
 
     public AdminMemorialsController(
         IMemorialService memorials,
+        IMemorialBillingService billing,
         IStatisticsService stats,
         IQrCodeService qr,
         IOptions<ImageSettings> imageSettings)
     {
         _memorials = memorials;
+        _billing = billing;
         _stats = stats;
         _qr = qr;
         _imageSettings = imageSettings.Value;
@@ -35,11 +38,12 @@ public class AdminMemorialsController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] MemorialStatus? status,
         [FromQuery] bool? isDemo,
+        [FromQuery] BillingFilter? billingFilter,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _memorials.ListAsync(search, status, isDemo, page, pageSize, ct);
+        var result = await _memorials.ListAsync(search, status, isDemo, billingFilter, page, pageSize, ct);
         return Ok(result);
     }
 
@@ -134,6 +138,56 @@ public class AdminMemorialsController : ControllerBase
     {
         var updated = await _memorials.UpdatePaymentAsync(id, request, ct);
         return updated is null ? NotFound() : Ok(updated);
+    }
+
+    [HttpPost("{id}/billing/confirm-initial")]
+    public async Task<ActionResult<MemorialAdminDto>> ConfirmInitialPayment(
+        string id,
+        [FromBody] ConfirmPaymentRequest? request,
+        CancellationToken ct)
+    {
+        try
+        {
+            request ??= new ConfirmPaymentRequest();
+            await _billing.ConfirmInitialPaymentAsync(id, request.Amount, request.Note, createdBy: User.Identity?.Name, ct);
+            var updated = await _memorials.GetAdminAsync(id, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/billing/confirm-renewal")]
+    public async Task<ActionResult<MemorialAdminDto>> ConfirmRenewalPayment(
+        string id,
+        [FromBody] ConfirmPaymentRequest? request,
+        CancellationToken ct)
+    {
+        try
+        {
+            request ??= new ConfirmPaymentRequest();
+            await _billing.ConfirmRenewalAsync(id, request.Amount, request.Note, createdBy: User.Identity?.Name, ct);
+            var updated = await _memorials.GetAdminAsync(id, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id}/payments")]
+    public async Task<ActionResult<List<MemorialPaymentDto>>> ListPayments(string id, CancellationToken ct)
+    {
+        var memorial = await _memorials.GetAdminAsync(id, ct);
+        if (memorial is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(await _billing.ListPaymentsAsync(id, ct));
     }
 
     [HttpPost("{id}/publish")]

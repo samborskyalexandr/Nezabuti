@@ -27,6 +27,8 @@ public class AppPublicSettings
 {
     public const string SectionName = "App";
     public string PublicBaseUrl { get; set; } = "http://localhost:8088";
+    /// <summary>Admin UI path segment (no leading slash), e.g. manage-nz7k4p.</summary>
+    public string AdminBasePath { get; set; } = "manage-nz7k4p";
     public string[] AllowedOrigins { get; set; } = ["http://localhost:8088"];
 }
 
@@ -39,4 +41,15 @@ public class ImageSettings
     public int FullMaxDimension { get; set; } = 2000;
     public int WebpQuality { get; set; } = 80;
     public string UploadsRoot { get; set; } = "/app/uploads";
+}
+
+public class BillingSettings
+{
+    public const string SectionName = "Billing";
+
+    /// <summary>Local hour (0–23) for the daily billing job in <see cref="TimeZoneId"/>.</summary>
+    public int DailyRunHour { get; set; } = 10;
+
+    /// <summary>IANA timezone id (e.g. Europe/Kyiv). Used for schedule and date-only billing comparisons.</summary>
+    public string TimeZoneId { get; set; } = "Europe/Kyiv";
 }

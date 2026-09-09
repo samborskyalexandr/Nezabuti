@@ -4,12 +4,15 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import {
+  BILLING_FILTER_LABELS,
+  BillingFilter,
   MemorialListItem,
   MemorialStatus,
-  PAYMENT_STATUS_LABELS,
+  PAYMENT_STATE_LABELS,
   PRIVACY_LABELS,
   Plan,
-  STATUS_LABELS
+  STATUS_LABELS,
+  resolveInitialPrice
 } from '../../../core/models/memorial.models';
 import { adminUrl } from '../../../core/config/admin-routes';
 
@@ -32,7 +35,14 @@ import { adminUrl } from '../../../core/config/admin-routes';
           <option [ngValue]="undefined">Усі статуси</option>
           <option value="Draft">Чернетка</option>
           <option value="Published">Опубліковано</option>
+          <option value="Suspended">Призупинено</option>
           <option value="Archived">В архіві</option>
+        </select>
+        <select class="border border-memorial-line bg-white px-3 py-2 font-sans text-sm" [(ngModel)]="billingFilter" (ngModelChange)="load()">
+          <option [ngValue]="undefined">Усі (оплата)</option>
+          @for (key of billingFilterKeys; track key) {
+            <option [ngValue]="key">{{ billingFilterLabels[key] }}</option>
+          }
         </select>
         <select class="border border-memorial-line bg-white px-3 py-2 font-sans text-sm" [(ngModel)]="demoFilter" (ngModelChange)="load()">
           <option value="all">Усі</option>
@@ -48,8 +58,10 @@ import { adminUrl } from '../../../core/config/admin-routes';
             <tr>
               <th class="px-4 py-3">Фото</th>
               <th class="px-4 py-3">ПІБ</th>
+              <th class="px-4 py-3">Замовник</th>
               <th class="px-4 py-3">План</th>
-              <th class="px-4 py-3">Оплата</th>
+              <th class="px-4 py-3">Оплачено до</th>
+              <th class="px-4 py-3">Статус оплати</th>
               <th class="px-4 py-3">PublicId</th>
               <th class="px-4 py-3">Статус</th>
               <th class="px-4 py-3">Видимість</th>
@@ -73,12 +85,24 @@ import { adminUrl } from '../../../core/config/admin-routes';
                     <span class="ml-2 inline-block border border-memorial-line px-1.5 py-px align-middle text-[0.65rem] font-medium uppercase tracking-[0.14em] text-memorial-muted">Демо</span>
                   }
                 </td>
-                <td class="px-4 py-3">{{ item.planName || '—' }}</td>
-                <td class="px-4 py-3 text-memorial-muted">
-                  @if (item.finalPrice != null) {
-                    {{ item.finalPrice | number:'1.0-0' }} грн ·
+                <td class="px-4 py-3">
+                  @if (item.customer) {
+                    <span class="block">{{ item.customer.name }}</span>
+                    <span class="block text-xs text-memorial-muted">{{ item.customer.phone }}</span>
+                  } @else {
+                    <span class="text-memorial-muted">—</span>
                   }
-                  {{ paymentLabels[item.paymentStatus || 'Unpaid'] }}
+                </td>
+                <td class="px-4 py-3">{{ item.planName || '—' }}</td>
+                <td class="px-4 py-3">
+                  @if (item.paidUntil) {
+                    {{ item.paidUntil | date:'dd.MM.yyyy' }}
+                  } @else {
+                    <span class="text-memorial-muted">—</span>
+                  }
+                </td>
+                <td class="px-4 py-3">
+                  {{ item.paymentStateLabel || paymentStateLabels[item.paymentState || 'Unconfigured'] }}
                 </td>
                 <td class="px-4 py-3">{{ item.publicId }}</td>
                 <td class="px-4 py-3">{{ statusLabels[item.status] }}</td>
@@ -118,7 +142,8 @@ import { adminUrl } from '../../../core/config/admin-routes';
                   <span class="min-w-0">
                     <span class="block font-serif text-lg">{{ plan.name }}</span>
                     <span class="mt-0.5 block font-sans text-sm text-memorial-muted">
-                      {{ plan.price | number:'1.0-0' }} ₴
+                      {{ planInitial(plan) | number:'1.0-0' }} грн · перший рік
+                      · надалі {{ planRenewal(plan) | number:'1.0-0' }} грн / рік
                       @if (plan.isCustom) {
                         · індивідуальний
                       }
@@ -195,10 +220,13 @@ export class AdminMemorialListPageComponent implements OnInit {
   plans: Plan[] = [];
   search = '';
   status: MemorialStatus | undefined;
+  billingFilter: BillingFilter | undefined;
   demoFilter: 'all' | 'client' | 'demo' = 'all';
   readonly statusLabels = STATUS_LABELS;
   readonly privacyLabels = PRIVACY_LABELS;
-  readonly paymentLabels = PAYMENT_STATUS_LABELS;
+  readonly paymentStateLabels = PAYMENT_STATE_LABELS;
+  readonly billingFilterLabels = BILLING_FILTER_LABELS;
+  readonly billingFilterKeys: BillingFilter[] = ['EndingIn30', 'EndingIn7', 'Grace', 'Expired', 'Suspended'];
 
   showCreate = false;
   creating = false;
@@ -224,6 +252,14 @@ export class AdminMemorialListPageComponent implements OnInit {
     this.api.listPlans().subscribe({ next: (p) => (this.plans = p.filter((x) => x.isActive)) });
   }
 
+  planInitial(plan: Plan): number {
+    return resolveInitialPrice(plan);
+  }
+
+  planRenewal(plan: Plan): number {
+    return plan.renewalPrice ?? resolveInitialPrice(plan);
+  }
+
   editLink(id: string): string {
     return adminUrl('memorials', id);
   }
@@ -234,9 +270,16 @@ export class AdminMemorialListPageComponent implements OnInit {
 
   load(): void {
     const isDemo = this.demoFilter === 'all' ? undefined : this.demoFilter === 'demo';
-    this.api.listMemorials({ search: this.search || undefined, status: this.status, isDemo }).subscribe((r) => {
-      this.items = r.items;
-    });
+    this.api
+      .listMemorials({
+        search: this.search || undefined,
+        status: this.status,
+        isDemo,
+        billingFilter: this.billingFilter
+      })
+      .subscribe((r) => {
+        this.items = r.items;
+      });
   }
 
   openCreate(): void {

@@ -44,12 +44,23 @@ public sealed class PlanLimitService : IPlanLimitService
 {
     public PlanSnapshot CreateSnapshot(Plan plan, PlanSnapshot? customOverrides = null)
     {
+        var initial = customOverrides?.InitialPrice > 0
+            ? customOverrides.InitialPrice
+            : customOverrides?.Price > 0
+                ? customOverrides.Price
+                : plan.ResolveInitialPrice();
+        var renewal = customOverrides?.RenewalPrice > 0
+            ? customOverrides.RenewalPrice
+            : plan.ResolveRenewalPrice();
+
         var snap = new PlanSnapshot
         {
             PlanId = plan.Id,
             Code = plan.Code,
             Name = plan.Name,
-            Price = customOverrides?.Price ?? plan.Price,
+            Price = initial,
+            InitialPrice = initial,
+            RenewalPrice = renewal,
             IsCustom = plan.IsCustom,
             IsUnlimited = customOverrides?.IsUnlimited ?? plan.IsUnlimited,
             MaxBlocks = customOverrides?.MaxBlocks ?? plan.MaxBlocks,
@@ -75,9 +86,20 @@ public sealed class PlanLimitService : IPlanLimitService
 
     public void ApplyCustomOverrides(PlanSnapshot snapshot, CustomPlanOverridesDto overrides)
     {
-        if (overrides.Price.HasValue)
+        if (overrides.InitialPrice.HasValue)
+        {
+            snapshot.InitialPrice = overrides.InitialPrice.Value;
+            snapshot.Price = overrides.InitialPrice.Value;
+        }
+        else if (overrides.Price.HasValue)
         {
             snapshot.Price = overrides.Price.Value;
+            snapshot.InitialPrice = overrides.Price.Value;
+        }
+
+        if (overrides.RenewalPrice.HasValue)
+        {
+            snapshot.RenewalPrice = overrides.RenewalPrice.Value;
         }
 
         if (overrides.IsUnlimited.HasValue)

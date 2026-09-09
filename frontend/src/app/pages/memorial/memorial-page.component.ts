@@ -19,6 +19,16 @@ import { SsrResponseService } from '../../core/services/ssr-response.service';
         <p class="font-sans text-memorial-muted">Сторінку не знайдено</p>
         <a href="/" class="mt-4 font-serif text-memorial-muted underline">Nezabuti</a>
       </div>
+    } @else if (memorial?.isTemporarilyUnavailable) {
+      <div class="flex min-h-screen flex-col items-center justify-center gap-4 bg-memorial-bg px-6 text-center">
+        <p class="font-serif text-2xl text-memorial-ink md:text-3xl">
+          Ця меморіальна сторінка тимчасово недоступна.
+        </p>
+        <p class="max-w-md font-sans text-memorial-muted">
+          Для уточнення інформації зверніться до адміністрації Nezabuti.
+        </p>
+        <a href="/" class="mt-4 font-serif text-memorial-muted underline">Nezabuti</a>
+      </div>
     } @else if (memorial) {
       <app-memorial-view [memorial]="memorial" />
     }
@@ -48,6 +58,15 @@ export class MemorialPageComponent implements OnInit {
     }
 
     this.memorial = resolved;
+
+    if (resolved.isTemporarilyUnavailable) {
+      this.title.setTitle('Сторінка тимчасово недоступна — Nezabuti');
+      this.meta.updateTag({ name: 'robots', content: 'noindex,nofollow' });
+      this.meta.updateTag({ name: 'description', content: 'Ця меморіальна сторінка тимчасово недоступна.' });
+      this.canonical.clear();
+      return;
+    }
+
     this.applySeo(resolved);
     if (isPlatformBrowser(this.platformId)) {
       this.api.recordView(resolved.publicId, false).subscribe({ error: () => undefined });

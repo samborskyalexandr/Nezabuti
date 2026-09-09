@@ -34,6 +34,17 @@ public class SiteSettings
     [BsonElement("qrSize100PriceDelta")]
     public decimal QrSize100PriceDelta { get; set; } = 200m;
 
+    // --- Telegram admin notifications (not public contacts) ---
+    [BsonElement("telegramNotifyEnabled")]
+    public bool TelegramNotifyEnabled { get; set; }
+
+    /// <summary>Encrypted bot token (enc:…).</summary>
+    [BsonElement("telegramBotTokenEnc")]
+    public string? TelegramBotTokenEnc { get; set; }
+
+    [BsonElement("telegramChatId")]
+    public string? TelegramChatId { get; set; }
+
     // --- Technical content limits (not plan limits) ---
     [BsonElement("shortTextMaxChars")]
     public int ShortTextMaxChars { get; set; } = 2000;

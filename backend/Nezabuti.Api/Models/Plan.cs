@@ -18,8 +18,17 @@ public class Plan
     [BsonElement("description")]
     public string? Description { get; set; }
 
+    /// <summary>Legacy single price. Prefer InitialPrice; kept for Mongo backward compatibility.</summary>
     [BsonElement("price")]
     public decimal Price { get; set; }
+
+    [BsonElement("initialPrice")]
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal InitialPrice { get; set; }
+
+    [BsonElement("renewalPrice")]
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal RenewalPrice { get; set; }
 
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
@@ -53,4 +62,9 @@ public class Plan
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; }
+
+    public decimal ResolveInitialPrice() =>
+        InitialPrice > 0 ? InitialPrice : Price;
+
+    public decimal ResolveRenewalPrice() => RenewalPrice;
 }

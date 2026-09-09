@@ -11,6 +11,10 @@ const EMPTY_SETTINGS: SiteSettings = {
   qrSize50PriceDelta: 0,
   qrSize75PriceDelta: 100,
   qrSize100PriceDelta: 200,
+  telegramNotifyEnabled: false,
+  telegramBotTokenMasked: '',
+  hasTelegramBotToken: false,
+  telegramChatId: '',
   shortTextMaxChars: 2000,
   textBlockMaxChars: 20000,
   quoteMaxChars: 1000,
@@ -50,6 +54,58 @@ const EMPTY_SETTINGS: SiteSettings = {
             Viber
             <input class="mt-1 w-full border border-memorial-line px-3 py-2" [(ngModel)]="form.viber" name="viber" placeholder="+380…" [disabled]="saving" />
           </label>
+        </section>
+
+        <section class="max-w-2xl space-y-5 border border-memorial-line bg-white p-6">
+          <h2 class="font-serif text-xl">Telegram-сповіщення</h2>
+          <p class="font-sans text-sm text-memorial-muted">
+            Службові повідомлення адміну про закінчення оплати та призупинення сторінок.
+            Тестове повідомлення надсилається у форматі реального нагадування на основі меморіалу YSQG27AFFT.
+          </p>
+          <label class="flex items-center gap-2 font-sans text-sm">
+            <input type="checkbox" [(ngModel)]="form.telegramNotifyEnabled" name="tgEnabled" [disabled]="saving" />
+            Увімкнено
+          </label>
+          <label class="block font-sans text-sm">
+            Bot token
+            <input
+              class="mt-1 w-full border border-memorial-line px-3 py-2"
+              [(ngModel)]="telegramBotTokenDraft"
+              name="tgToken"
+              type="password"
+              autocomplete="off"
+              [placeholder]="tokenPlaceholder"
+              [disabled]="saving"
+            />
+            @if (form.hasTelegramBotToken && form.telegramBotTokenMasked) {
+              <span class="mt-1 block text-xs text-memorial-muted">Збережено: {{ form.telegramBotTokenMasked }}</span>
+            }
+          </label>
+          <label class="block font-sans text-sm">
+            Chat ID
+            <input
+              class="mt-1 w-full border border-memorial-line px-3 py-2"
+              [(ngModel)]="form.telegramChatId"
+              name="tgChat"
+              placeholder="напр. -100…"
+              [disabled]="saving"
+            />
+          </label>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              class="border border-memorial-ink px-4 py-2 font-sans text-sm disabled:opacity-50"
+              [disabled]="testingTelegram || saving"
+              (click)="testTelegram()"
+            >
+              {{ testingTelegram ? 'Перевірка…' : 'Надіслати тестове повідомлення' }}
+            </button>
+            @if (telegramTestMessage) {
+              <span class="font-sans text-sm" [class.text-memorial-accent]="telegramTestOk" [class.text-red-700]="!telegramTestOk">
+                {{ telegramTestMessage }}
+              </span>
+            }
+          </div>
         </section>
 
         <section class="max-w-2xl space-y-5 border border-memorial-line bg-white p-6">
@@ -106,15 +162,27 @@ export class AdminSettingsPageComponent implements OnInit {
   private readonly api = inject(ApiService);
 
   form: SiteSettings = { ...EMPTY_SETTINGS };
+  telegramBotTokenDraft = '';
   loading = true;
   saving = false;
+  testingTelegram = false;
   message = '';
   error = '';
+  telegramTestMessage = '';
+  telegramTestOk = false;
+
+  get tokenPlaceholder(): string {
+    if (this.form.hasTelegramBotToken && this.form.telegramBotTokenMasked) {
+      return this.form.telegramBotTokenMasked;
+    }
+    return 'Вставте токен бота';
+  }
 
   ngOnInit(): void {
     this.api.getAdminSettings().subscribe({
       next: (s) => {
         this.form = { ...EMPTY_SETTINGS, ...s };
+        this.telegramBotTokenDraft = '';
         this.loading = false;
       },
       error: () => {
@@ -131,15 +199,41 @@ export class AdminSettingsPageComponent implements OnInit {
     this.saving = true;
     this.message = '';
     this.error = '';
-    this.api.updateAdminSettings(this.form).subscribe({
+    const body: Partial<SiteSettings> & { telegramBotToken?: string } = { ...this.form };
+    const token = this.telegramBotTokenDraft.trim();
+    if (token) {
+      body.telegramBotToken = token;
+    }
+    this.api.updateAdminSettings(body).subscribe({
       next: (s) => {
         this.form = { ...EMPTY_SETTINGS, ...s };
+        this.telegramBotTokenDraft = '';
         this.saving = false;
         this.message = 'Збережено';
       },
       error: (err) => {
         this.saving = false;
         this.error = err?.error?.message || 'Не вдалося зберегти налаштування';
+      }
+    });
+  }
+
+  testTelegram(): void {
+    if (this.testingTelegram) {
+      return;
+    }
+    this.testingTelegram = true;
+    this.telegramTestMessage = '';
+    this.api.testTelegramNotify().subscribe({
+      next: (r) => {
+        this.testingTelegram = false;
+        this.telegramTestOk = !!r.ok;
+        this.telegramTestMessage = r.message || (r.ok ? 'Надіслано' : 'Помилка');
+      },
+      error: (err) => {
+        this.testingTelegram = false;
+        this.telegramTestOk = false;
+        this.telegramTestMessage = err?.error?.message || 'Не вдалося надіслати тест';
       }
     });
   }

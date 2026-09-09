@@ -27,11 +27,12 @@ public class Memorial
     [BsonRepresentation(BsonType.String)]
     public MemorialPrivacy Privacy { get; set; } = MemorialPrivacy.Public;
 
-    /// <summary>
-    /// Advertising / presentation memorial. Missing field on legacy documents is treated as false.
-    /// </summary>
     [BsonElement("isDemo")]
     public bool IsDemo { get; set; }
+
+    [BsonElement("customerId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? CustomerId { get; set; }
 
     [BsonElement("blocks")]
     public List<MemorialBlock> Blocks { get; set; } = [];
@@ -48,9 +49,6 @@ public class Memorial
     [BsonElement("archivedAt")]
     public DateTime? ArchivedAt { get; set; }
 
-    /// <summary>
-    /// Optional hero metadata (not required for publish).
-    /// </summary>
     [BsonElement("callsign")]
     public string? Callsign { get; set; }
 
@@ -60,9 +58,6 @@ public class Memorial
     [BsonElement("shortText")]
     public string? ShortText { get; set; }
 
-    /// <summary>
-    /// Frozen plan terms. Null for legacy memorials until admin assigns a plan.
-    /// </summary>
     [BsonElement("planSnapshot")]
     public PlanSnapshot? PlanSnapshot { get; set; }
 
@@ -73,20 +68,15 @@ public class Memorial
     [BsonRepresentation(BsonType.String)]
     public QrPlateSize QrPlateSize { get; set; } = QrPlateSize.Size50;
 
-    /// <summary>
-    /// QR surcharge frozen when size was chosen / last saved. Protects old memorials from settings changes.
-    /// </summary>
     [BsonElement("qrPriceDeltaSnapshot")]
     [BsonRepresentation(BsonType.Decimal128)]
     public decimal QrPriceDeltaSnapshot { get; set; }
 
+    /// <summary>Legacy Unpaid/Paid flag — prefer computed PaymentState from dates.</summary>
     [BsonElement("paymentStatus")]
     [BsonRepresentation(BsonType.String)]
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
 
-    /// <summary>
-    /// Actual amount due / agreed. May be manually overridden by admin.
-    /// </summary>
     [BsonElement("finalPrice")]
     [BsonRepresentation(BsonType.Decimal128)]
     public decimal? FinalPrice { get; set; }
@@ -94,6 +84,31 @@ public class Memorial
     [BsonElement("isFinalPriceOverridden")]
     public bool IsFinalPriceOverridden { get; set; }
 
+    /// <summary>Legacy; prefer LastPaymentAt.</summary>
     [BsonElement("paidAt")]
     public DateTime? PaidAt { get; set; }
+
+    [BsonElement("lastPaymentAt")]
+    public DateTime? LastPaymentAt { get; set; }
+
+    [BsonElement("paidUntil")]
+    public DateTime? PaidUntil { get; set; }
+
+    [BsonElement("graceUntil")]
+    public DateTime? GraceUntil { get; set; }
+
+    [BsonElement("reminder30SentAt")]
+    public DateTime? Reminder30SentAt { get; set; }
+
+    [BsonElement("reminder7SentAt")]
+    public DateTime? Reminder7SentAt { get; set; }
+
+    [BsonElement("expiredReminderSentAt")]
+    public DateTime? ExpiredReminderSentAt { get; set; }
+
+    [BsonElement("grace7ReminderSentAt")]
+    public DateTime? Grace7ReminderSentAt { get; set; }
+
+    [BsonElement("suspendedReminderSentAt")]
+    public DateTime? SuspendedReminderSentAt { get; set; }
 }

@@ -36,7 +36,11 @@ public sealed class PlanService : IPlanService
 
         plan.Name = request.Name.Trim();
         plan.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
-        plan.Price = request.Price;
+
+        var initial = request.InitialPrice > 0 ? request.InitialPrice : request.Price;
+        plan.InitialPrice = initial;
+        plan.Price = initial;
+        plan.RenewalPrice = request.RenewalPrice;
         plan.IsActive = request.IsActive;
         plan.IncludedUpdates = Math.Max(0, request.IncludedUpdates);
 
@@ -79,38 +83,50 @@ public sealed class PlanService : IPlanService
         var plans = await _plans.ListAsync(activeOnly: true, ct);
         return plans
             .Where(p => !p.IsCustom && PlanCodes.Standard.Contains(p.Code) && p.Code != PlanCodes.Custom)
-            .OrderBy(p => p.Price)
-            .Select(p => new PublicPlanDto
+            .OrderBy(p => p.ResolveInitialPrice())
+            .Select(p =>
             {
-                Code = p.Code,
-                Name = p.Name,
-                Description = p.Description,
-                Price = p.Price,
-                MaxGalleryBlocks = p.MaxGalleryBlocks,
-                MaxPhotosPerGallery = p.MaxPhotosPerGallery,
-                MaxTimelineEvents = p.MaxTimelineEvents,
-                MaxMemories = p.MaxMemories,
-                IncludedUpdates = p.IncludedUpdates,
-                IsRecommended = p.Code == PlanCodes.Story
+                var initial = p.ResolveInitialPrice();
+                return new PublicPlanDto
+                {
+                    Code = p.Code,
+                    Name = p.Name,
+                    Description = p.Description,
+                    Price = initial,
+                    InitialPrice = initial,
+                    RenewalPrice = p.ResolveRenewalPrice(),
+                    MaxGalleryBlocks = p.MaxGalleryBlocks,
+                    MaxPhotosPerGallery = p.MaxPhotosPerGallery,
+                    MaxTimelineEvents = p.MaxTimelineEvents,
+                    MaxMemories = p.MaxMemories,
+                    IncludedUpdates = p.IncludedUpdates,
+                    IsRecommended = p.Code == PlanCodes.Story
+                };
             })
             .ToList();
     }
 
-    private static PlanDto Map(Plan p) => new()
+    private static PlanDto Map(Plan p)
     {
-        Id = p.Id,
-        Code = p.Code,
-        Name = p.Name,
-        Description = p.Description,
-        Price = p.Price,
-        IsActive = p.IsActive,
-        IsCustom = p.IsCustom,
-        IsUnlimited = p.IsUnlimited,
-        MaxBlocks = p.MaxBlocks,
-        MaxGalleryBlocks = p.MaxGalleryBlocks,
-        MaxPhotosPerGallery = p.MaxPhotosPerGallery,
-        MaxTimelineEvents = p.MaxTimelineEvents,
-        MaxMemories = p.MaxMemories,
-        IncludedUpdates = p.IncludedUpdates
-    };
+        var initial = p.ResolveInitialPrice();
+        return new()
+        {
+            Id = p.Id,
+            Code = p.Code,
+            Name = p.Name,
+            Description = p.Description,
+            Price = initial,
+            InitialPrice = initial,
+            RenewalPrice = p.ResolveRenewalPrice(),
+            IsActive = p.IsActive,
+            IsCustom = p.IsCustom,
+            IsUnlimited = p.IsUnlimited,
+            MaxBlocks = p.MaxBlocks,
+            MaxGalleryBlocks = p.MaxGalleryBlocks,
+            MaxPhotosPerGallery = p.MaxPhotosPerGallery,
+            MaxTimelineEvents = p.MaxTimelineEvents,
+            MaxMemories = p.MaxMemories,
+            IncludedUpdates = p.IncludedUpdates
+        };
+    }
 }

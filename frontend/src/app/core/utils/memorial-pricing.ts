@@ -1,4 +1,4 @@
-import { PlanSnapshot, QrPlateSize, SiteSettings } from '../models/memorial.models';
+import { PlanSnapshot, QrPlateSize, SiteSettings, resolveInitialPrice } from '../models/memorial.models';
 
 export function qrPriceDeltaFromSettings(settings: SiteSettings | null | undefined, size: QrPlateSize): number {
   if (!settings) {
@@ -37,5 +37,5 @@ export function calculatedPriceFor(
   if (!snapshot) {
     return null;
   }
-  return calculateMemorialPrice(snapshot.price, qrDelta);
+  return calculateMemorialPrice(resolveInitialPrice(snapshot), qrDelta);
 }

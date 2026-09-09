@@ -29,6 +29,12 @@ data/db/
 npm-debug.log*
 yarn-error.log*
 
+# Playwright
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/playwright/.cache/
+
 # IDE
 .idea/
 .vscode/

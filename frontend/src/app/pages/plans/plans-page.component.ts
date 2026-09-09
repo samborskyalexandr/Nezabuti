@@ -28,8 +28,8 @@ import { phoneTelHref, telegramHref, viberChatLink } from '../../core/config/sit
         <div class="mx-auto max-w-3xl text-center">
           <h1 class="font-serif text-4xl font-semibold md:text-5xl">Тарифні плани</h1>
           <p class="mt-5 font-sans text-lg leading-relaxed text-memorial-muted">
-            Оберіть формат сторінки пам’яті. Кожен план — одноразова оплата створення.
-            Сторінка зберігається назавжди.
+            Перший платіж включає створення та перший рік розміщення меморіальної сторінки.
+            Надалі сторінка продовжується щороку.
           </p>
         </div>
       </section>
@@ -50,7 +50,13 @@ import { phoneTelHref, telegramHref, viberChatLink } from '../../core/config/sit
                   <p class="mb-3 font-sans text-xs uppercase tracking-[0.18em] text-memorial-accent">Рекомендований</p>
                 }
                 <h2 class="font-serif text-3xl">{{ plan.name }}</h2>
-                <p class="mt-4 font-serif text-4xl font-semibold">{{ plan.price | number:'1.0-0' }} ₴</p>
+                <p class="mt-4 font-serif text-4xl font-semibold">
+                  {{ initialPrice(plan) | number:'1.0-0' }} грн
+                </p>
+                <p class="mt-1 font-sans text-sm text-memorial-muted">Перший рік</p>
+                <p class="mt-1 font-sans text-sm text-memorial-ink/80">
+                  Надалі {{ renewalPrice(plan) | number:'1.0-0' }} грн / рік
+                </p>
                 <p class="mt-4 flex-1 font-sans text-sm leading-relaxed text-memorial-muted">
                   {{ plan.description || marketingCopy(plan.code) }}
                 </p>
@@ -72,10 +78,6 @@ import { phoneTelHref, telegramHref, viberChatLink } from '../../core/config/sit
               </article>
             }
           </div>
-
-          <p class="mx-auto mt-14 max-w-2xl text-center font-serif text-xl italic text-memorial-ink/80" appReveal="fade-up">
-            Усі опубліковані меморіальні сторінки залишаються доступними безстроково. Щомісячної або щорічної абонплати немає.
-          </p>
 
           <div id="contacts" class="mx-auto mt-16 max-w-xl text-center" appReveal="fade-up">
             <h2 class="font-serif text-2xl">Замовити</h2>
@@ -116,7 +118,8 @@ export class PlansPageComponent implements OnInit {
     this.title.setTitle('Тарифні плани — Nezabuti');
     this.meta.updateTag({
       name: 'description',
-      content: 'Тарифні плани цифрових меморіальних сторінок Nezabuti. Сторінка зберігається назавжди.'
+      content:
+        'Тарифні плани цифрових меморіальних сторінок Nezabuti. Перший рік і щорічне продовження.'
     });
     this.canonical.set(`${this.document.defaultView?.location?.origin || ''}/plans`);
 
@@ -135,6 +138,14 @@ export class PlansPageComponent implements OnInit {
         this.viberHref = viberChatLink(s.viber);
       }
     });
+  }
+
+  initialPrice(plan: PublicPlan): number {
+    return plan.initialPrice ?? plan.price ?? 0;
+  }
+
+  renewalPrice(plan: PublicPlan): number {
+    return plan.renewalPrice ?? this.initialPrice(plan);
   }
 
   marketingCopy(code: string): string {

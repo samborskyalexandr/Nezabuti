@@ -1,7 +1,11 @@
-export type MemorialStatus = 'Draft' | 'Published' | 'Archived';
+export type MemorialStatus = 'Draft' | 'Published' | 'Archived' | 'Suspended';
 export type MemorialPrivacy = 'Public' | 'Private';
 export type QrPlateSize = 'Size50' | 'Size75' | 'Size100';
+/** @deprecated Prefer PaymentState from billing dates. */
 export type PaymentStatus = 'Unpaid' | 'Paid';
+export type PaymentState = 'Unconfigured' | 'Paid' | 'Grace' | 'Expired';
+export type BillingFilter = 'EndingIn30' | 'EndingIn7' | 'Grace' | 'Expired' | 'Suspended';
+export type MemorialPaymentType = 'Initial' | 'Renewal';
 
 export interface PhotoRef {
   photoId: string;
@@ -27,12 +31,45 @@ export interface SeoMeta {
   robots: string;
 }
 
+export interface CustomerSummary {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string | null;
+  telegramUsername?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MemorialPayment {
+  id: string;
+  memorialId: string;
+  customerId?: string | null;
+  amount: number;
+  paidAt: string;
+  periodFrom: string;
+  periodTo: string;
+  type: MemorialPaymentType;
+  note?: string | null;
+  createdBy?: string | null;
+  createdAt?: string;
+}
+
 export interface PublicMemorial {
   publicId: string;
   fullName: string;
   mainPhoto?: PhotoRef | null;
   privacy: MemorialPrivacy;
   isDemo?: boolean;
+  /** Suspended publication — content blocks omitted. */
+  isTemporarilyUnavailable?: boolean;
   blocks: MemorialBlock[];
   callsign?: string | null;
   lifePeriod?: string | null;
@@ -45,7 +82,10 @@ export interface PlanSnapshot {
   planId: string;
   code: string;
   name: string;
+  /** Legacy alias of initialPrice. */
   price: number;
+  initialPrice: number;
+  renewalPrice: number;
   isCustom: boolean;
   isUnlimited: boolean;
   maxBlocks?: number | null;
@@ -83,7 +123,10 @@ export interface Plan {
   code: string;
   name: string;
   description?: string | null;
+  /** Legacy alias of initialPrice. */
   price: number;
+  initialPrice: number;
+  renewalPrice: number;
   isActive: boolean;
   isCustom: boolean;
   isUnlimited: boolean;
@@ -99,7 +142,10 @@ export interface PublicPlan {
   code: string;
   name: string;
   description?: string | null;
+  /** Legacy alias of initialPrice. */
   price: number;
+  initialPrice: number;
+  renewalPrice: number;
   maxGalleryBlocks?: number | null;
   maxPhotosPerGallery?: number | null;
   maxTimelineEvents?: number | null;
@@ -126,6 +172,8 @@ export interface MemorialListItem {
   status: MemorialStatus;
   privacy: MemorialPrivacy;
   isDemo?: boolean;
+  customerId?: string | null;
+  customer?: CustomerSummary | null;
   createdAt: string;
   updatedAt: string;
   publishedAt?: string | null;
@@ -136,6 +184,11 @@ export interface MemorialListItem {
   planCode?: string | null;
   paymentStatus?: PaymentStatus;
   finalPrice?: number | null;
+  paidUntil?: string | null;
+  graceUntil?: string | null;
+  lastPaymentAt?: string | null;
+  paymentState: PaymentState;
+  paymentStateLabel: string;
 }
 
 export interface MemorialAdmin {
@@ -148,6 +201,8 @@ export interface MemorialAdmin {
   status: MemorialStatus;
   privacy: MemorialPrivacy;
   isDemo?: boolean;
+  customerId?: string | null;
+  customer?: CustomerSummary | null;
   blocks: MemorialBlock[];
   callsign?: string | null;
   lifePeriod?: string | null;
@@ -163,8 +218,14 @@ export interface MemorialAdmin {
   calculatedPrice?: number | null;
   finalPrice?: number | null;
   isFinalPriceOverridden: boolean;
+  /** @deprecated Prefer paymentState. */
   paymentStatus: PaymentStatus;
   paidAt?: string | null;
+  lastPaymentAt?: string | null;
+  paidUntil?: string | null;
+  graceUntil?: string | null;
+  paymentState: PaymentState;
+  paymentStateLabel: string;
   usage?: PlanUsage | null;
 }
 
@@ -190,6 +251,10 @@ export interface SiteSettings {
   qrSize50PriceDelta: number;
   qrSize75PriceDelta: number;
   qrSize100PriceDelta: number;
+  telegramNotifyEnabled: boolean;
+  telegramBotTokenMasked: string;
+  hasTelegramBotToken: boolean;
+  telegramChatId?: string | null;
   shortTextMaxChars: number;
   textBlockMaxChars: number;
   quoteMaxChars: number;
@@ -198,6 +263,16 @@ export interface SiteSettings {
   serviceDescriptionMaxChars: number;
   awardDescriptionMaxChars: number;
   photoCaptionMaxChars: number;
+}
+
+export interface UpdateSiteSettingsBody extends Partial<SiteSettings> {
+  /** Write-only; omit or empty to keep existing token. */
+  telegramBotToken?: string | null;
+}
+
+export interface TelegramTestResult {
+  ok: boolean;
+  message: string;
 }
 
 export interface PublicSiteSettings {
@@ -214,7 +289,8 @@ export interface LoginResponse {
 export const STATUS_LABELS: Record<MemorialStatus, string> = {
   Draft: 'Чернетка',
   Published: 'Опубліковано',
-  Archived: 'В архіві'
+  Archived: 'В архіві',
+  Suspended: 'Призупинено'
 };
 
 export const PRIVACY_LABELS: Record<MemorialPrivacy, string> = {
@@ -233,6 +309,26 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   Paid: 'Оплачено'
 };
 
+export const PAYMENT_STATE_LABELS: Record<PaymentState, string> = {
+  Unconfigured: 'Оплату не налаштовано',
+  Paid: 'Оплачено',
+  Grace: 'Пільговий період',
+  Expired: 'Прострочено'
+};
+
+export const PAYMENT_TYPE_LABELS: Record<MemorialPaymentType, string> = {
+  Initial: 'Первинна',
+  Renewal: 'Продовження'
+};
+
+export const BILLING_FILTER_LABELS: Record<BillingFilter, string> = {
+  EndingIn30: 'Закінчується ≤ 30 днів',
+  EndingIn7: 'Закінчується ≤ 7 днів',
+  Grace: 'Пільговий період',
+  Expired: 'Прострочено',
+  Suspended: 'Призупинено'
+};
+
 export const BLOCK_TYPE_LABELS: Record<string, string> = {
   Text: 'Текст',
   Timeline: 'Життєвий шлях',
@@ -243,6 +339,33 @@ export const BLOCK_TYPE_LABELS: Record<string, string> = {
   Awards: 'Відзнаки та нагороди',
   Memories: 'Спогади'
 };
+
+export function resolveInitialPrice(plan: {
+  price?: number | null;
+  initialPrice?: number | null;
+} | null | undefined): number {
+  if (!plan) {
+    return 0;
+  }
+  if (plan.initialPrice != null && plan.initialPrice > 0) {
+    return plan.initialPrice;
+  }
+  return plan.price ?? 0;
+}
+
+export function resolveRenewalPrice(plan: {
+  renewalPrice?: number | null;
+  price?: number | null;
+  initialPrice?: number | null;
+} | null | undefined): number {
+  if (!plan) {
+    return 0;
+  }
+  if (plan.renewalPrice != null) {
+    return plan.renewalPrice;
+  }
+  return resolveInitialPrice(plan);
+}
 
 export function createEmptyBlockData(type: string): Record<string, unknown> {
   switch (type) {

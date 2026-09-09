@@ -28,4 +28,10 @@ public class AdminSettingsController : ControllerBase
     {
         return Ok(await _settings.UpdateAsync(request ?? new UpdateSiteSettingsRequest(), ct));
     }
+
+    [HttpPost("test-telegram")]
+    public async Task<ActionResult<TelegramTestResultDto>> TestTelegram(CancellationToken ct)
+    {
+        return Ok(await _settings.TestTelegramAsync(ct));
+    }
 }
