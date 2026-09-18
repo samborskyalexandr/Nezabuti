@@ -10,6 +10,7 @@ public interface ISiteSettingsService
     Task<PublicSiteSettingsDto> GetPublicAsync(CancellationToken ct = default);
     Task<SiteSettingsDto> UpdateAsync(UpdateSiteSettingsRequest request, CancellationToken ct = default);
     Task<TelegramTestResultDto> TestTelegramAsync(CancellationToken ct = default);
+    Task<PhotoRefDto> UploadHomeImageAsync(Stream stream, string contentType, CancellationToken ct = default);
 }
 
 public sealed class SiteSettingsService : ISiteSettingsService
@@ -17,15 +18,18 @@ public sealed class SiteSettingsService : ISiteSettingsService
     private readonly ISiteSettingsRepository _repo;
     private readonly ISecretEncryptionService _secrets;
     private readonly ITelegramAdminNotifyService _telegram;
+    private readonly IPhotoService _photos;
 
     public SiteSettingsService(
         ISiteSettingsRepository repo,
         ISecretEncryptionService secrets,
-        ITelegramAdminNotifyService telegram)
+        ITelegramAdminNotifyService telegram,
+        IPhotoService photos)
     {
         _repo = repo;
         _secrets = secrets;
         _telegram = telegram;
+        _photos = photos;
     }
 
     public async Task<SiteSettingsDto> GetAsync(CancellationToken ct = default)
@@ -37,11 +41,15 @@ public sealed class SiteSettingsService : ISiteSettingsService
     public async Task<PublicSiteSettingsDto> GetPublicAsync(CancellationToken ct = default)
     {
         var settings = await _repo.GetAsync(ct);
+        var (howItWorksEnabled, slides, demo) = HomeShowcaseMapper.ToPublic(settings.HomeShowcase, MapPhoto);
         return new PublicSiteSettingsDto
         {
             Phone = settings.Phone ?? string.Empty,
             Telegram = settings.Telegram ?? string.Empty,
-            Viber = settings.Viber ?? string.Empty
+            Viber = settings.Viber ?? string.Empty,
+            HowItWorksEnabled = howItWorksEnabled,
+            HowItWorksSlides = slides,
+            Demo = demo
         };
     }
 
@@ -141,8 +149,24 @@ public sealed class SiteSettingsService : ISiteSettingsService
             current.PhotoCaptionMaxChars = ClampChars(request.PhotoCaptionMaxChars.Value);
         }
 
+        if (request.HomeShowcase is not null)
+        {
+            var previous = HomeShowcaseMapper.Normalize(current.HomeShowcase);
+            var next = HomeShowcaseMapper.FromAdminRequest(request.HomeShowcase);
+            next.SeedMobileRevision = current.HomeShowcase?.SeedMobileRevision;
+            HomeShowcaseMapper.ValidateForSave(next);
+            await CleanupUnusedHomeImagesAsync(previous, next, ct);
+            current.HomeShowcase = next;
+        }
+
         var settings = await _repo.UpsertAsync(current, ct);
         return Map(settings);
+    }
+
+    public async Task<PhotoRefDto> UploadHomeImageAsync(Stream stream, string contentType, CancellationToken ct = default)
+    {
+        var photo = await _photos.ProcessHomeUploadAsync(stream, contentType, ct);
+        return MapPhoto(photo);
     }
 
     public async Task<TelegramTestResultDto> TestTelegramAsync(CancellationToken ct = default)
@@ -174,9 +198,42 @@ public sealed class SiteSettingsService : ISiteSettingsService
             MemoryTextMaxChars = s.MemoryTextMaxChars,
             ServiceDescriptionMaxChars = s.ServiceDescriptionMaxChars,
             AwardDescriptionMaxChars = s.AwardDescriptionMaxChars,
-            PhotoCaptionMaxChars = s.PhotoCaptionMaxChars
+            PhotoCaptionMaxChars = s.PhotoCaptionMaxChars,
+            HomeShowcase = HomeShowcaseMapper.ToAdmin(s.HomeShowcase ?? new HomeShowcaseSettings(), MapPhoto)
         };
     }
+
+    private async Task CleanupUnusedHomeImagesAsync(
+        HomeShowcaseSettings previous,
+        HomeShowcaseSettings next,
+        CancellationToken ct)
+    {
+        var keep = new HashSet<string>(HomeShowcaseMapper.CollectPhotoIds(next), StringComparer.Ordinal);
+        foreach (var photoId in HomeShowcaseMapper.CollectPhotoIds(previous))
+        {
+            if (!keep.Contains(photoId))
+            {
+                await _photos.DeleteHomePhotoFilesAsync(photoId, ct);
+            }
+        }
+    }
+
+    private static PhotoRefDto MapPhoto(PhotoRef photo)
+    {
+        var thumbPath = string.IsNullOrWhiteSpace(photo.ThumbPath) ? photo.PreviewPath : photo.ThumbPath;
+        return new PhotoRefDto
+        {
+            PhotoId = photo.PhotoId,
+            ThumbUrl = ToMediaUrl(thumbPath),
+            PreviewUrl = ToMediaUrl(photo.PreviewPath),
+            FullUrl = ToMediaUrl(photo.FullPath),
+            Width = photo.Width,
+            Height = photo.Height
+        };
+    }
+
+    private static string ToMediaUrl(string relativePath)
+        => $"/uploads/{relativePath.TrimStart('/')}";
 
     private static string Normalize(string? value) => (value ?? string.Empty).Trim();
 

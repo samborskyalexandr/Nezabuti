@@ -1,0 +1,61 @@
+{
+  "howItWorksEnabled": true,
+  "slides": [
+    {
+      "sortOrder": 1,
+      "enabled": true,
+      "title": "QR-код, що веде до пам’яті",
+      "description": "На пам’ятнику або меморіальній табличці розміщується QR-код. Після сканування людина одразу переходить на персональну сторінку пам’яті.",
+      "desktopImageName": "01_qr-code.png",
+      "mobileImageName": "01_qr-code-m.png"
+    },
+    {
+      "sortOrder": 2,
+      "enabled": true,
+      "title": "Сторінка пам’яті одним скануванням",
+      "description": "На смартфоні відкривається меморіальна сторінка з іменем, фотографією, роками життя та коротким описом людини.",
+      "desktopImageName": "02_memorial-page.png",
+      "mobileImageName": "02_memorial-page-m.png"
+    },
+    {
+      "sortOrder": 3,
+      "enabled": true,
+      "title": "Життєва історія в хронології",
+      "description": "Сторінка може містити життєвий шлях у вигляді зручної послідовності важливих подій та етапів.",
+      "desktopImageName": "03_life-timeline.png",
+      "mobileImageName": "03_life-timeline-m.png"
+    },
+    {
+      "sortOrder": 4,
+      "enabled": true,
+      "title": "Світлини, що зберігають спогади",
+      "description": "У галереях можна показати важливі моменти життя: родину, захоплення, подорожі, службу, друзів і теплі повсякденні миті.",
+      "desktopImageName": "04_gallery.png",
+      "mobileImageName": "04_gallery-m.png"
+    },
+    {
+      "sortOrder": 5,
+      "enabled": true,
+      "title": "Теплі слова, що залишаються поруч",
+      "description": "На сторінці можна зберегти спогади рідних, близьких, друзів і побратимів — слова, які передають характер людини та її значення для інших.",
+      "desktopImageName": "05_memories.png",
+      "mobileImageName": "05_memories-m.png"
+    },
+    {
+      "sortOrder": 6,
+      "enabled": true,
+      "title": "Nezabuti — жива історія пам’яті",
+      "description": "У результаті створюється цілісна сторінка пам’яті: з біографією, світлинами, подіями, спогадами та постійним доступом через QR-код.",
+      "desktopImageName": "06_complete-story.png",
+      "mobileImageName": "06_complete-story-m.png"
+    }
+  ],
+  "demo": {
+    "enabled": true,
+    "title": "Подивіться, як виглядає готова сторінка",
+    "description": "Ознайомтеся з прикладом оформлення меморіальної сторінки.",
+    "url": "https://nezabuti.com.ua/m/YSQG27AFFT",
+    "previewDesktopImageName": "02_memorial-page.png",
+    "previewMobileImageName": "02_memorial-page-m.png"
+  }
+}

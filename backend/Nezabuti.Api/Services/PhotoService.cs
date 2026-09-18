@@ -11,7 +11,9 @@ namespace Nezabuti.Api.Services;
 public interface IPhotoService
 {
     Task<PhotoRef> ProcessUploadAsync(string publicId, Stream uploadStream, string contentType, CancellationToken ct = default);
+    Task<PhotoRef> ProcessHomeUploadAsync(Stream uploadStream, string contentType, CancellationToken ct = default);
     Task DeletePhotoFilesAsync(string publicId, string photoId, CancellationToken ct = default);
+    Task DeleteHomePhotoFilesAsync(string photoId, CancellationToken ct = default);
     Task DeleteMemorialDirectoryAsync(string publicId, CancellationToken ct = default);
     string GetAbsolutePath(string relativePath);
     bool IsSafeRelativePath(string relativePath);
@@ -37,29 +39,48 @@ public sealed class PhotoService : IPhotoService
         _logger = logger;
     }
 
-    public async Task<PhotoRef> ProcessUploadAsync(
+    public Task<PhotoRef> ProcessUploadAsync(
         string publicId,
         Stream uploadStream,
         string contentType,
         CancellationToken ct = default)
     {
         ValidatePublicId(publicId);
+        return ProcessScopedUploadAsync($"memorials/{publicId}", uploadStream, contentType, ct);
+    }
 
+    public Task<PhotoRef> ProcessHomeUploadAsync(Stream uploadStream, string contentType, CancellationToken ct = default)
+        => ProcessScopedUploadAsync("settings/home", uploadStream, contentType, ct);
+
+    public Task DeleteHomePhotoFilesAsync(string photoId, CancellationToken ct = default)
+    {
+        ValidatePhotoId(photoId);
+        TryDelete(GetAbsolutePath($"settings/home/{photoId}-thumb.webp"));
+        TryDelete(GetAbsolutePath($"settings/home/{photoId}-preview.webp"));
+        TryDelete(GetAbsolutePath($"settings/home/{photoId}-full.webp"));
+        return Task.CompletedTask;
+    }
+
+    private async Task<PhotoRef> ProcessScopedUploadAsync(
+        string relativeFolder,
+        Stream uploadStream,
+        string contentType,
+        CancellationToken ct)
+    {
         if (!AllowedMimeTypes.Contains(contentType))
         {
             throw new InvalidOperationException("Непідтримуваний тип зображення.");
         }
 
-        var memorialDir = Path.Combine(_settings.UploadsRoot, "memorials", publicId);
-        Directory.CreateDirectory(memorialDir);
+        var folder = Path.Combine(_settings.UploadsRoot, relativeFolder.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(folder);
 
         var photoId = GenerateFileId();
-        var tempPath = Path.Combine(memorialDir, $".tmp-{photoId}");
-
-        var thumbRel = $"memorials/{publicId}/{photoId}-thumb.webp";
-        var previewRel = $"memorials/{publicId}/{photoId}-preview.webp";
-        var fullRel = $"memorials/{publicId}/{photoId}-full.webp";
-
+        var tempPath = Path.Combine(folder, $".tmp-{photoId}");
+        var prefix = relativeFolder.Trim('/').Replace('\\', '/');
+        var thumbRel = $"{prefix}/{photoId}-thumb.webp";
+        var previewRel = $"{prefix}/{photoId}-preview.webp";
+        var fullRel = $"{prefix}/{photoId}-full.webp";
         var thumbAbs = GetAbsolutePath(thumbRel);
         var previewAbs = GetAbsolutePath(previewRel);
         var fullAbs = GetAbsolutePath(fullRel);
@@ -113,9 +134,9 @@ public sealed class PhotoService : IPhotoService
             return new PhotoRef
             {
                 PhotoId = photoId,
-                ThumbPath = thumbRel.Replace('\\', '/'),
-                PreviewPath = previewRel.Replace('\\', '/'),
-                FullPath = fullRel.Replace('\\', '/'),
+                ThumbPath = thumbRel,
+                PreviewPath = previewRel,
+                FullPath = fullRel,
                 Width = originalWidth,
                 Height = originalHeight
             };
@@ -196,7 +217,8 @@ public sealed class PhotoService : IPhotoService
             return false;
         }
 
-        return normalized.StartsWith("memorials/", StringComparison.OrdinalIgnoreCase);
+        return normalized.StartsWith("memorials/", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("settings/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ResizeIfNeeded(IImageProcessingContext ctx, int maxDimension)

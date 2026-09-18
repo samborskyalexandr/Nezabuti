@@ -174,6 +174,7 @@ builder.Services.AddScoped<IMemorialBillingService, MemorialBillingService>();
 builder.Services.AddScoped<IMemorialBillingJobService, MemorialBillingJobService>();
 builder.Services.AddScoped<ITelegramAdminNotifyService, TelegramAdminNotifyService>();
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
+builder.Services.AddScoped<IHomeShowcaseSeeder, HomeShowcaseSeeder>();
 builder.Services.AddHostedService<BillingBackgroundService>();
 
 builder.Services.AddHealthChecks()
@@ -181,19 +182,22 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
+var uploadsRoot = builder.Configuration["UPLOADS_ROOT"]
+    ?? builder.Configuration["Images:UploadsRoot"]
+    ?? "/app/uploads";
+Directory.CreateDirectory(uploadsRoot);
+Directory.CreateDirectory(Path.Combine(uploadsRoot, "memorials"));
+Directory.CreateDirectory(Path.Combine(uploadsRoot, "settings", "home"));
+
 using (var scope = app.Services.CreateScope())
 {
     var mongo = scope.ServiceProvider.GetRequiredService<IMongoContext>();
     await mongo.EnsureIndexesAsync();
     var planRepo = scope.ServiceProvider.GetRequiredService<IPlanRepository>();
     await planRepo.EnsureBootstrapAsync();
+    var homeShowcase = scope.ServiceProvider.GetRequiredService<IHomeShowcaseSeeder>();
+    await homeShowcase.EnsureSeededAsync();
 }
-
-var uploadsRoot = builder.Configuration["UPLOADS_ROOT"]
-    ?? builder.Configuration["Images:UploadsRoot"]
-    ?? "/app/uploads";
-Directory.CreateDirectory(uploadsRoot);
-Directory.CreateDirectory(Path.Combine(uploadsRoot, "memorials"));
 
 app.UseCors("AppCors");
 app.UseAuthentication();

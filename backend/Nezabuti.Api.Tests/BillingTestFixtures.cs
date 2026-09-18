@@ -21,6 +21,7 @@ internal sealed class FakeBillingClock : IBillingClock
 internal sealed class FakeMemorialRepository : IMemorialRepository
 {
     private readonly Dictionary<string, Memorial> _items = new(StringComparer.Ordinal);
+    public Dictionary<string, long> ViewCounts { get; } = new(StringComparer.Ordinal);
 
     public IReadOnlyDictionary<string, Memorial> Items => _items;
 
@@ -52,8 +53,49 @@ internal sealed class FakeMemorialRepository : IMemorialRepository
 
     public Task<(List<Memorial> Items, long Total)> ListAsync(
         string? search, MemorialStatus? status, bool? isDemo, BillingFilter? billingFilter,
-        int page, int pageSize, CancellationToken ct = default) =>
-        throw new NotSupportedException();
+        string? sortBy, string? sortDir,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        IEnumerable<Memorial> query = _items.Values;
+        if (status.HasValue)
+        {
+            query = query.Where(m => m.Status == status.Value);
+        }
+
+        if (isDemo == true)
+        {
+            query = query.Where(m => m.IsDemo);
+        }
+        else if (isDemo == false)
+        {
+            query = query.Where(m => !m.IsDemo);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(m =>
+                m.FullName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || m.PublicId.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var sortKey = MemorialListSort.NormalizeSortBy(sortBy);
+        var ascending = MemorialListSort.IsAscending(sortDir);
+        query = sortKey == MemorialListSort.ViewCount
+            ? (ascending
+                ? query.OrderBy(m => ViewCounts.GetValueOrDefault(m.Id)).ThenByDescending(m => m.UpdatedAt)
+                : query.OrderByDescending(m => ViewCounts.GetValueOrDefault(m.Id)).ThenByDescending(m => m.UpdatedAt))
+            : (ascending
+                ? query.OrderBy(m => m.UpdatedAt)
+                : query.OrderByDescending(m => m.UpdatedAt));
+
+        var materialized = query.ToList();
+        var total = materialized.Count;
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var items = materialized.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        return Task.FromResult((items, (long)total));
+    }
 
     public Task<Memorial?> UpdateAsync(string id, UpdateMemorialRequest request, CancellationToken ct = default) =>
         throw new NotSupportedException();
@@ -134,19 +176,46 @@ internal sealed class FakeTelegramAdminNotifyService : ITelegramAdminNotifyServi
 internal sealed class StubPhotoService : IPhotoService
 {
     public Task DeletePhotoFilesAsync(string publicId, string photoId, CancellationToken ct = default) => Task.CompletedTask;
+    public Task DeleteHomePhotoFilesAsync(string photoId, CancellationToken ct = default) => Task.CompletedTask;
     public Task DeleteMemorialDirectoryAsync(string publicId, CancellationToken ct = default) => Task.CompletedTask;
     public Task<PhotoRef> ProcessUploadAsync(string publicId, Stream uploadStream, string contentType, CancellationToken ct = default) =>
         throw new NotSupportedException();
+    public Task<PhotoRef> ProcessHomeUploadAsync(Stream uploadStream, string contentType, CancellationToken ct = default) =>
+        Task.FromResult(new PhotoRef
+        {
+            PhotoId = "home-new",
+            ThumbPath = "settings/home/home-new-thumb.webp",
+            PreviewPath = "settings/home/home-new-preview.webp",
+            FullPath = "settings/home/home-new-full.webp"
+        });
     public string GetAbsolutePath(string relativePath) => relativePath;
     public bool IsSafeRelativePath(string relativePath) => true;
 }
 
 internal sealed class StubStatisticsService : IStatisticsService
 {
+    public Dictionary<string, MemorialStatisticsDto> ByMemorialId { get; } = new(StringComparer.Ordinal);
+
     public Task EnsureExistsAsync(Memorial memorial, CancellationToken ct = default) => Task.CompletedTask;
     public Task RecordPublicViewAsync(string publicId, bool isAdminPreview, CancellationToken ct = default) => Task.CompletedTask;
     public Task<MemorialStatisticsDto?> GetAsync(string publicId, CancellationToken ct = default) =>
-        Task.FromResult<MemorialStatisticsDto?>(new MemorialStatisticsDto { PublicId = publicId });
+        Task.FromResult(ByMemorialId.Values.FirstOrDefault(s => s.PublicId == publicId)
+                        ?? new MemorialStatisticsDto { PublicId = publicId });
+    public Task<IReadOnlyDictionary<string, MemorialStatisticsDto>> GetByMemorialIdsAsync(
+        IEnumerable<string> memorialIds,
+        CancellationToken ct = default)
+    {
+        var map = new Dictionary<string, MemorialStatisticsDto>(StringComparer.Ordinal);
+        foreach (var id in memorialIds)
+        {
+            if (ByMemorialId.TryGetValue(id, out var stats))
+            {
+                map[id] = stats;
+            }
+        }
+
+        return Task.FromResult<IReadOnlyDictionary<string, MemorialStatisticsDto>>(map);
+    }
     public Task DeleteByMemorialIdAsync(string memorialId, CancellationToken ct = default) => Task.CompletedTask;
 }
 
@@ -243,13 +312,16 @@ internal static class BillingTestFixtures
         FakeBillingClock clock) =>
         new(memorials, telegram, clock, NullLogger<MemorialBillingJobService>.Instance);
 
-    public static MemorialService CreateMemorialService(FakeMemorialRepository memorials, FakeBillingClock? clock = null)
+    public static MemorialService CreateMemorialService(
+        FakeMemorialRepository memorials,
+        FakeBillingClock? clock = null,
+        StubStatisticsService? stats = null)
     {
         clock ??= new FakeBillingClock();
         return new MemorialService(
             memorials,
             new StubPhotoService(),
-            new StubStatisticsService(),
+            stats ?? new StubStatisticsService(),
             new StubPlanRepository(),
             new PlanLimitService(),
             new StubSiteSettingsRepository(),

@@ -122,6 +122,23 @@ export class AdminMemorialEditorPageComponent implements OnInit {
     return `/m/${m.publicId}`;
   }
 
+  get headerViewCount(): number {
+    return this.memorial?.viewCount ?? this.stats?.totalViews ?? 0;
+  }
+
+  get headerLastViewedLabel(): string {
+    const raw = this.memorial?.lastViewedAt ?? this.stats?.lastViewedAt ?? null;
+    if (!raw) {
+      return '—';
+    }
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
   get isArchived(): boolean {
     return this.memorial?.status === 'Archived';
   }

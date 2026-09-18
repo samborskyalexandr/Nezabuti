@@ -17,6 +17,8 @@ public interface IMemorialService
         MemorialStatus? status,
         bool? isDemo,
         BillingFilter? billingFilter,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize,
         CancellationToken ct = default);
@@ -109,15 +111,21 @@ public sealed class MemorialService : IMemorialService
         MemorialStatus? status,
         bool? isDemo,
         BillingFilter? billingFilter,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize,
         CancellationToken ct = default)
     {
-        var (items, total) = await _repo.ListAsync(search, status, isDemo, billingFilter, page, pageSize, ct);
+        var (items, total) = await _repo.ListAsync(search, status, isDemo, billingFilter, sortBy, sortDir, page, pageSize, ct);
         var customerMap = await LoadCustomerMapAsync(items.Select(i => i.CustomerId), ct);
+        var statsMap = await _stats.GetByMemorialIdsAsync(items.Select(i => i.Id), ct);
         return new PagedResult<MemorialListItemDto>
         {
-            Items = items.Select(m => MapListItem(m, ResolveCustomer(customerMap, m.CustomerId))).ToList(),
+            Items = items.Select(m => MapListItem(
+                m,
+                ResolveCustomer(customerMap, m.CustomerId),
+                statsMap.TryGetValue(m.Id, out var s) ? s : null)).ToList(),
             Total = total,
             Page = Math.Max(1, page),
             PageSize = Math.Clamp(pageSize, 1, 100)
@@ -472,10 +480,11 @@ public sealed class MemorialService : IMemorialService
             customer = await _customers.GetByIdAsync(m.CustomerId, ct);
         }
 
-        return MapAdmin(m, customer);
+        var stats = await _stats.GetAsync(m.PublicId, ct);
+        return MapAdmin(m, customer, stats);
     }
 
-    private MemorialListItemDto MapListItem(Memorial m, Customer? customer)
+    private MemorialListItemDto MapListItem(Memorial m, Customer? customer, MemorialStatisticsDto? stats)
     {
         var paymentState = BillingCalendar.ResolvePaymentState(m.PaidUntil, m.GraceUntil, _billingClock.TodayLocal);
         return new()
@@ -503,11 +512,12 @@ public sealed class MemorialService : IMemorialService
             GraceUntil = m.GraceUntil,
             LastPaymentAt = m.LastPaymentAt,
             PaymentState = paymentState,
-            PaymentStateLabel = BillingCalendar.PaymentStateLabelUk(paymentState)
+            PaymentStateLabel = BillingCalendar.PaymentStateLabelUk(paymentState),
+            ViewCount = stats?.TotalViews ?? 0
         };
     }
 
-    private MemorialAdminDto MapAdmin(Memorial m, Customer? customer)
+    private MemorialAdminDto MapAdmin(Memorial m, Customer? customer, MemorialStatisticsDto? stats = null)
     {
         var paymentState = BillingCalendar.ResolvePaymentState(m.PaidUntil, m.GraceUntil, _billingClock.TodayLocal);
         return new()
@@ -544,6 +554,8 @@ public sealed class MemorialService : IMemorialService
             GraceUntil = m.GraceUntil,
             PaymentState = paymentState,
             PaymentStateLabel = BillingCalendar.PaymentStateLabelUk(paymentState),
+            ViewCount = stats?.TotalViews ?? 0,
+            LastViewedAt = stats?.LastViewedAt,
             Usage = _planLimits.GetUsage(m)
         };
     }

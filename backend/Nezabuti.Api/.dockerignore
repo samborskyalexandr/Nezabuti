@@ -1,6 +1,11 @@
 bin/
 obj/
 uploads/
+Seed/home-showcase/desktop/
+Seed/home-showcase/mobile/
+Seed/home-showcase/images/
+Seed/home-showcase/_incoming*/
+Seed/home-showcase/_verify/
 *.user
 *.swp
 .vs/

@@ -31,6 +31,8 @@
         </p>
         <p class="mt-1 font-sans text-xs text-memorial-muted">
           Створено: {{ memorial.createdAt | date:'short' }} · Оновлено: {{ memorial.updatedAt | date:'short' }}
+          · Переглядів: {{ headerViewCount }}
+          · Останній перегляд: {{ headerLastViewedLabel }}
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -704,14 +706,6 @@
         }
       </div>
     </section>
-
-    @if (stats) {
-      <section class="border border-memorial-line bg-white p-6">
-        <h2 class="font-serif text-xl">Статистика</h2>
-        <p class="mt-2 font-sans text-sm">Переглядів: {{ stats.totalViews }}</p>
-        <p class="font-sans text-sm text-memorial-muted">Останній перегляд: {{ stats.lastViewedAt || '—' }}</p>
-      </section>
-    }
     }
     </fieldset>
   </div>

@@ -70,6 +70,10 @@ public class SiteSettings
     [BsonElement("photoCaptionMaxChars")]
     public int PhotoCaptionMaxChars { get; set; } = 1000;
 
+    /// <summary>Public home carousel + demo CTA. Missing on legacy documents.</summary>
+    [BsonElement("homeShowcase")]
+    public HomeShowcaseSettings HomeShowcase { get; set; } = new();
+
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -79,6 +79,7 @@ public sealed class SiteSettingsRepository : ISiteSettingsRepository
             .Set(s => s.ServiceDescriptionMaxChars, settings.ServiceDescriptionMaxChars)
             .Set(s => s.AwardDescriptionMaxChars, settings.AwardDescriptionMaxChars)
             .Set(s => s.PhotoCaptionMaxChars, settings.PhotoCaptionMaxChars)
+            .Set(s => s.HomeShowcase, settings.HomeShowcase ?? new HomeShowcaseSettings())
             .Set(s => s.UpdatedAt, settings.UpdatedAt)
             .SetOnInsert(s => s.Id, SiteSettings.SingletonId);
 

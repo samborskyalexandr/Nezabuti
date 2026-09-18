@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Nezabuti.Api.DTOs;
 using Nezabuti.Api.Models;
@@ -18,6 +19,8 @@ public interface IMemorialRepository
         MemorialStatus? status,
         bool? isDemo,
         BillingFilter? billingFilter,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize,
         CancellationToken ct = default);
@@ -121,6 +124,8 @@ public sealed class MemorialRepository : IMemorialRepository
         MemorialStatus? status,
         bool? isDemo,
         BillingFilter? billingFilter,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize,
         CancellationToken ct = default)
@@ -128,6 +133,33 @@ public sealed class MemorialRepository : IMemorialRepository
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
+        var filter = BuildListFilter(search, status, isDemo, billingFilter);
+        var total = await _db.Memorials.CountDocumentsAsync(filter, cancellationToken: ct);
+        var sortKey = MemorialListSort.NormalizeSortBy(sortBy);
+        var ascending = MemorialListSort.IsAscending(sortDir);
+
+        if (sortKey == MemorialListSort.ViewCount)
+        {
+            var items = await ListByViewCountAsync(filter, ascending, page, pageSize, ct);
+            return (items, total);
+        }
+
+        var find = _db.Memorials.Find(filter);
+        find = ascending ? find.SortBy(m => m.UpdatedAt) : find.SortByDescending(m => m.UpdatedAt);
+        var pageItems = await find
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync(ct);
+
+        return (pageItems, total);
+    }
+
+    private static FilterDefinition<Memorial> BuildListFilter(
+        string? search,
+        MemorialStatus? status,
+        bool? isDemo,
+        BillingFilter? billingFilter)
+    {
         var filter = Builders<Memorial>.Filter.Empty;
         if (status.HasValue)
         {
@@ -140,7 +172,6 @@ public sealed class MemorialRepository : IMemorialRepository
         }
         else if (isDemo == false)
         {
-            // Legacy documents without isDemo are treated as client memorials.
             filter &= Builders<Memorial>.Filter.Ne(m => m.IsDemo, true);
         }
 
@@ -159,14 +190,51 @@ public sealed class MemorialRepository : IMemorialRepository
             filter &= BuildBillingFilter(billingFilter.Value);
         }
 
-        var total = await _db.Memorials.CountDocumentsAsync(filter, cancellationToken: ct);
-        var items = await _db.Memorials.Find(filter)
-            .SortByDescending(m => m.UpdatedAt)
-            .Skip((page - 1) * pageSize)
-            .Limit(pageSize)
-            .ToListAsync(ct);
+        return filter;
+    }
 
-        return (items, total);
+    private async Task<List<Memorial>> ListByViewCountAsync(
+        FilterDefinition<Memorial> filter,
+        bool ascending,
+        int page,
+        int pageSize,
+        CancellationToken ct)
+    {
+        var serializerRegistry = BsonSerializer.SerializerRegistry;
+        var serializer = serializerRegistry.GetSerializer<Memorial>();
+        var matchDoc = filter.Render(serializer, serializerRegistry);
+        var sortDir = ascending ? 1 : -1;
+        var pipeline = new BsonDocument[]
+        {
+            new("$match", matchDoc),
+            new("$lookup", new BsonDocument
+            {
+                { "from", "memorial_statistics" },
+                { "localField", "_id" },
+                { "foreignField", "memorialId" },
+                { "as", "_stats" }
+            }),
+            new("$addFields", new BsonDocument("_viewCount",
+                new BsonDocument("$ifNull", new BsonArray
+                {
+                    new BsonDocument("$arrayElemAt", new BsonArray { "$_stats.totalViews", 0 }),
+                    0
+                }))),
+            new("$sort", new BsonDocument
+            {
+                { "_viewCount", sortDir },
+                { "updatedAt", -1 }
+            }),
+            new("$skip", (page - 1) * pageSize),
+            new("$limit", pageSize),
+            new("$project", new BsonDocument
+            {
+                { "_stats", 0 },
+                { "_viewCount", 0 }
+            })
+        };
+
+        return await _db.Memorials.Aggregate<Memorial>(pipeline).ToListAsync(ct);
     }
 
     public Task<List<Memorial>> ListBillingCandidatesAsync(CancellationToken ct = default)

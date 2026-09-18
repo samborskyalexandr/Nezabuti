@@ -6,6 +6,17 @@
 # Uploads & runtime data
 uploads/**
 !uploads/.gitkeep
+
+# Home showcase binaries stay local / are uploaded via admin. Do not ship in git.
+backend/Nezabuti.Api/Seed/home-showcase/desktop/
+backend/Nezabuti.Api/Seed/home-showcase/mobile/
+backend/Nezabuti.Api/Seed/home-showcase/images/
+backend/Nezabuti.Api/Seed/home-showcase/**/*.png
+backend/Nezabuti.Api/Seed/home-showcase/**/*.jpg
+backend/Nezabuti.Api/Seed/home-showcase/**/*.jpeg
+backend/Nezabuti.Api/Seed/home-showcase/**/*.webp
+backend/Nezabuti.Api/Seed/home-showcase/_incoming*/
+backend/Nezabuti.Api/Seed/home-showcase/_verify/
 **/tmp-uploads/
 **/.tmp-*
 

@@ -158,6 +158,7 @@ public class MemorialListItemDto
     public DateTime? LastPaymentAt { get; set; }
     public PaymentState PaymentState { get; set; } = PaymentState.Unconfigured;
     public string PaymentStateLabel { get; set; } = string.Empty;
+    public long ViewCount { get; set; }
 }
 
 public class MemorialAdminDto
@@ -195,6 +196,8 @@ public class MemorialAdminDto
     public DateTime? GraceUntil { get; set; }
     public PaymentState PaymentState { get; set; } = PaymentState.Unconfigured;
     public string PaymentStateLabel { get; set; } = string.Empty;
+    public long ViewCount { get; set; }
+    public DateTime? LastViewedAt { get; set; }
     public PlanUsageDto? Usage { get; set; }
 }
 
@@ -386,6 +389,7 @@ public class SiteSettingsDto
     public int ServiceDescriptionMaxChars { get; set; }
     public int AwardDescriptionMaxChars { get; set; }
     public int PhotoCaptionMaxChars { get; set; }
+    public HomeShowcaseAdminDto HomeShowcase { get; set; } = new();
 }
 
 public class UpdateSiteSettingsRequest
@@ -409,6 +413,7 @@ public class UpdateSiteSettingsRequest
     public int? ServiceDescriptionMaxChars { get; set; }
     public int? AwardDescriptionMaxChars { get; set; }
     public int? PhotoCaptionMaxChars { get; set; }
+    public HomeShowcaseAdminDto? HomeShowcase { get; set; }
 }
 
 public class PublicSiteSettingsDto
@@ -416,6 +421,57 @@ public class PublicSiteSettingsDto
     public string Phone { get; set; } = string.Empty;
     public string Telegram { get; set; } = string.Empty;
     public string Viber { get; set; } = string.Empty;
+    public bool HowItWorksEnabled { get; set; }
+    public List<PublicHowItWorksSlideDto> HowItWorksSlides { get; set; } = [];
+    public PublicDemoCtaDto? Demo { get; set; }
+}
+
+public class PublicHowItWorksSlideDto
+{
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? ShortCaption { get; set; }
+    public string? AltText { get; set; }
+    public int SortOrder { get; set; }
+    public PhotoRefDto? Image { get; set; }
+    public PhotoRefDto? DesktopImage { get; set; }
+    public PhotoRefDto? MobileImage { get; set; }
+    public string? DesktopImageUrl { get; set; }
+    public string? MobileImageUrl { get; set; }
+}
+
+public class PublicDemoCtaDto
+{
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string ButtonLabel { get; set; } = string.Empty;
+    public PhotoRefDto? PreviewImage { get; set; }
+}
+
+public class HomeShowcaseAdminDto
+{
+    public bool HowItWorksEnabled { get; set; } = true;
+    public List<HowItWorksSlideDto> HowItWorksSlides { get; set; } = [];
+    public bool DemoEnabled { get; set; }
+    public string DemoTitle { get; set; } = string.Empty;
+    public string DemoDescription { get; set; } = string.Empty;
+    public string DemoUrl { get; set; } = string.Empty;
+    public PhotoRefDto? DemoPreviewImage { get; set; }
+}
+
+public class HowItWorksSlideDto
+{
+    public string? Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? ShortCaption { get; set; }
+    public PhotoRefDto? Image { get; set; }
+    public PhotoRefDto? DesktopImage { get; set; }
+    public PhotoRefDto? MobileImage { get; set; }
+    public string? AltText { get; set; }
+    public int SortOrder { get; set; }
+    public bool Enabled { get; set; } = true;
 }
 
 public class CustomerDto

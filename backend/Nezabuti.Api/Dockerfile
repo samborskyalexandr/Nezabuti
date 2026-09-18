@@ -13,7 +13,7 @@ RUN apt-get update \
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 COPY --from=build /app/publish .
-RUN mkdir -p /app/uploads/memorials
+RUN mkdir -p /app/uploads/memorials /app/uploads/settings/home
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:8080/api/health || exit 1
 ENTRYPOINT ["dotnet", "Nezabuti.Api.dll"]

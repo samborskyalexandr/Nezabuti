@@ -39,11 +39,13 @@ public class AdminMemorialsController : ControllerBase
         [FromQuery] MemorialStatus? status,
         [FromQuery] bool? isDemo,
         [FromQuery] BillingFilter? billingFilter,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _memorials.ListAsync(search, status, isDemo, billingFilter, page, pageSize, ct);
+        var result = await _memorials.ListAsync(search, status, isDemo, billingFilter, sortBy, sortDir, page, pageSize, ct);
         return Ok(result);
     }
 

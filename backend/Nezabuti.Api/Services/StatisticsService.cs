@@ -10,6 +10,7 @@ public interface IStatisticsService
     Task EnsureExistsAsync(Memorial memorial, CancellationToken ct = default);
     Task RecordPublicViewAsync(string publicId, bool isAdminPreview, CancellationToken ct = default);
     Task<MemorialStatisticsDto?> GetAsync(string publicId, CancellationToken ct = default);
+    Task<IReadOnlyDictionary<string, MemorialStatisticsDto>> GetByMemorialIdsAsync(IEnumerable<string> memorialIds, CancellationToken ct = default);
     Task DeleteByMemorialIdAsync(string memorialId, CancellationToken ct = default);
 }
 
@@ -93,16 +94,38 @@ public sealed class StatisticsService : IStatisticsService
             return null;
         }
 
-        return new MemorialStatisticsDto
+        return stats is null ? null : MapDto(stats);
+    }
+
+    private static MemorialStatisticsDto MapDto(MemorialStatistics stats) => new()
+    {
+        PublicId = stats.PublicId,
+        TotalViews = stats.TotalViews,
+        LastViewedAt = stats.LastViewedAt,
+        ViewsPerDay = stats.ViewsPerDay
+            .OrderByDescending(d => d.Date)
+            .Select(d => new DailyViewCountDto { Date = d.Date, Count = d.Count })
+            .ToList()
+    };
+
+    public async Task<IReadOnlyDictionary<string, MemorialStatisticsDto>> GetByMemorialIdsAsync(
+        IEnumerable<string> memorialIds,
+        CancellationToken ct = default)
+    {
+        var ids = memorialIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (ids.Count == 0)
         {
-            PublicId = stats.PublicId,
-            TotalViews = stats.TotalViews,
-            LastViewedAt = stats.LastViewedAt,
-            ViewsPerDay = stats.ViewsPerDay
-                .OrderByDescending(d => d.Date)
-                .Select(d => new DailyViewCountDto { Date = d.Date, Count = d.Count })
-                .ToList()
-        };
+            return new Dictionary<string, MemorialStatisticsDto>(StringComparer.Ordinal);
+        }
+
+        var stats = await _db.Statistics.Find(s => ids.Contains(s.MemorialId)).ToListAsync(ct);
+        return stats.ToDictionary(
+            s => s.MemorialId,
+            MapDto,
+            StringComparer.Ordinal);
     }
 
     public async Task DeleteByMemorialIdAsync(string memorialId, CancellationToken ct = default)

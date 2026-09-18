@@ -5,7 +5,8 @@ import { RouterLink } from '@angular/router';
 import { RevealDirective } from '../../shared/directives/reveal.directive';
 import { CanonicalService } from '../../core/services/canonical.service';
 import { ApiService } from '../../core/services/api.service';
-import { PublicSiteSettings } from '../../core/models/memorial.models';
+import { PublicDemoCta, PublicHowItWorksSlide, PublicSiteSettings } from '../../core/models/memorial.models';
+import { HowItWorksCarouselComponent } from '../../shared/components/how-it-works-carousel/how-it-works-carousel.component';
 import {
   phoneTelHref,
   telegramHref,
@@ -16,7 +17,7 @@ import {
 @Component({
   selector: 'app-home-page',
   standalone: true,
-  imports: [RouterLink, RevealDirective],
+  imports: [RouterLink, RevealDirective, HowItWorksCarouselComponent],
   template: `
     <div class="min-h-screen bg-memorial-bg">
       <header class="absolute inset-x-0 top-0 z-10 px-6 py-6 md:px-10">
@@ -67,16 +68,41 @@ import {
         </p>
       </section>
 
-      <section class="border-y border-memorial-line bg-memorial-surface px-6 py-20 md:py-28" appReveal="fade-up">
-        <div class="mx-auto max-w-3xl">
-          <h2 class="font-serif text-3xl md:text-4xl">Як це працює</h2>
-          <ol class="mt-8 space-y-6 font-sans text-lg leading-relaxed">
-            <li>1. Створюється меморіальна сторінка з іменем і світлиною.</li>
-            <li>2. Додаються блоки: біографія, служба, нагороди, спогади, галерея.</li>
-            <li>3. Сторінка публікується за постійним URL і QR-кодом.</li>
-          </ol>
-        </div>
-      </section>
+      @if (howItWorksSlides.length || demoCta) {
+        <section class="overflow-x-hidden border-y border-memorial-line bg-memorial-surface px-6 py-20 md:px-10 md:py-28" appReveal="fade-up">
+          <div class="mx-auto max-w-6xl">
+            <h2 class="font-serif text-3xl md:text-4xl">Як це працює</h2>
+            @if (howItWorksSlides.length) {
+              <div class="mt-10">
+                <app-how-it-works-carousel [slides]="howItWorksSlides" />
+              </div>
+            }
+            @if (demoCta) {
+              <div class="mx-auto mt-12 max-w-2xl border border-memorial-line bg-memorial-bg px-6 py-8 text-center">
+                @if (demoCta.previewImage?.previewUrl || demoCta.previewImage?.thumbUrl) {
+                  <img
+                    [src]="demoCta.previewImage?.previewUrl || demoCta.previewImage?.thumbUrl"
+                    [alt]="demoCta.title"
+                    class="mx-auto mb-5 aspect-video max-h-48 w-full max-w-md object-contain"
+                  />
+                }
+                <p class="font-serif text-2xl text-memorial-ink">{{ demoCta.title }}</p>
+                @if (demoCta.description) {
+                  <p class="mt-3 font-sans text-base leading-relaxed text-memorial-muted">{{ demoCta.description }}</p>
+                }
+                <a
+                  [href]="demoCta.url"
+                  [attr.target]="demoCta.url.startsWith('http') ? '_blank' : null"
+                  [attr.rel]="demoCta.url.startsWith('http') ? 'noopener noreferrer' : null"
+                  class="mt-6 inline-block border border-memorial-ink px-6 py-3 font-sans text-sm tracking-wide transition hover:bg-memorial-ink hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-memorial-accent"
+                >
+                  {{ demoCta.buttonLabel || 'Відкрити демо-сторінку' }}
+                </a>
+              </div>
+            }
+          </div>
+        </section>
+      }
 
       <section class="mx-auto max-w-3xl px-6 py-20 md:py-28" appReveal="fade-up">
         <h2 class="font-serif text-3xl md:text-4xl">Для чого потрібен цифровий меморіал</h2>
@@ -206,6 +232,8 @@ export class HomePageComponent implements OnInit {
   private readonly api = inject(ApiService);
 
   contacts: PublicSiteSettings = { phone: '', telegram: '', viber: '' };
+  howItWorksSlides: PublicHowItWorksSlide[] = [];
+  demoCta: PublicDemoCta | null = null;
   phoneHref: string | null = null;
   telegramUrl: string | null = null;
   viberHref: string | null = null;
@@ -219,9 +247,15 @@ export class HomePageComponent implements OnInit {
     this.canonical.set(`${origin}/`);
 
     this.api.getPublicSettings().subscribe({
-      next: (s) => this.applyContacts(s),
-      error: () => this.applyContacts({ phone: '', telegram: '', viber: '' })
+      next: (s) => this.applyPublicSettings(s),
+      error: () => this.applyPublicSettings({ phone: '', telegram: '', viber: '' })
     });
+  }
+
+  private applyPublicSettings(s: PublicSiteSettings): void {
+    this.applyContacts(s);
+    this.howItWorksSlides = s.howItWorksEnabled === false ? [] : (s.howItWorksSlides ?? []);
+    this.demoCta = s.demo ?? null;
   }
 
   private applyContacts(s: PublicSiteSettings): void {

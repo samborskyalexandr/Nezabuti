@@ -189,6 +189,7 @@ export interface MemorialListItem {
   lastPaymentAt?: string | null;
   paymentState: PaymentState;
   paymentStateLabel: string;
+  viewCount?: number;
 }
 
 export interface MemorialAdmin {
@@ -226,6 +227,8 @@ export interface MemorialAdmin {
   graceUntil?: string | null;
   paymentState: PaymentState;
   paymentStateLabel: string;
+  viewCount?: number;
+  lastViewedAt?: string | null;
   usage?: PlanUsage | null;
 }
 
@@ -263,6 +266,51 @@ export interface SiteSettings {
   serviceDescriptionMaxChars: number;
   awardDescriptionMaxChars: number;
   photoCaptionMaxChars: number;
+  homeShowcase?: HomeShowcaseAdmin;
+}
+
+export interface HowItWorksSlideAdmin {
+  id?: string | null;
+  title: string;
+  description: string;
+  shortCaption?: string | null;
+  image?: PhotoRef | null;
+  desktopImage?: PhotoRef | null;
+  mobileImage?: PhotoRef | null;
+  altText?: string | null;
+  sortOrder: number;
+  enabled: boolean;
+}
+
+export interface HomeShowcaseAdmin {
+  howItWorksEnabled: boolean;
+  howItWorksSlides: HowItWorksSlideAdmin[];
+  demoEnabled: boolean;
+  demoTitle: string;
+  demoDescription: string;
+  demoUrl: string;
+  demoPreviewImage?: PhotoRef | null;
+}
+
+export interface PublicHowItWorksSlide {
+  title: string;
+  description: string;
+  shortCaption?: string | null;
+  altText?: string | null;
+  sortOrder?: number;
+  image?: PhotoRef | null;
+  desktopImage?: PhotoRef | null;
+  mobileImage?: PhotoRef | null;
+  desktopImageUrl?: string | null;
+  mobileImageUrl?: string | null;
+}
+
+export interface PublicDemoCta {
+  title: string;
+  description: string;
+  url: string;
+  buttonLabel: string;
+  previewImage?: PhotoRef | null;
 }
 
 export interface UpdateSiteSettingsBody extends Partial<SiteSettings> {
@@ -279,6 +327,9 @@ export interface PublicSiteSettings {
   phone: string;
   telegram: string;
   viber: string;
+  howItWorksEnabled?: boolean;
+  howItWorksSlides?: PublicHowItWorksSlide[];
+  demo?: PublicDemoCta | null;
 }
 
 export interface LoginResponse {

@@ -44,6 +44,8 @@ export class ApiService {
     status?: MemorialStatus;
     isDemo?: boolean;
     billingFilter?: BillingFilter;
+    sortBy?: 'updatedAt' | 'viewCount';
+    sortDir?: 'asc' | 'desc';
     page?: number;
     pageSize?: number;
   }): Observable<PagedResult<MemorialListItem>> {
@@ -61,6 +63,12 @@ export class ApiService {
     }
     if (params.billingFilter) {
       httpParams = httpParams.set('billingFilter', params.billingFilter);
+    }
+    if (params.sortBy) {
+      httpParams = httpParams.set('sortBy', params.sortBy);
+    }
+    if (params.sortDir) {
+      httpParams = httpParams.set('sortDir', params.sortDir);
     }
     return this.http.get<PagedResult<MemorialListItem>>('/api/admin/memorials', { params: httpParams });
   }
@@ -272,6 +280,12 @@ export class ApiService {
 
   updateAdminSettings(body: UpdateSiteSettingsBody): Observable<SiteSettings> {
     return this.http.put<SiteSettings>('/api/admin/settings', body);
+  }
+
+  uploadHomeImage(file: File): Observable<PhotoRef> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<PhotoRef>('/api/admin/settings/home-images', form);
   }
 
   testTelegramNotify(): Observable<TelegramTestResult> {

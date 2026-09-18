@@ -65,6 +65,11 @@ import { adminUrl } from '../../../core/config/admin-routes';
               <th class="px-4 py-3">PublicId</th>
               <th class="px-4 py-3">Статус</th>
               <th class="px-4 py-3">Видимість</th>
+              <th class="px-4 py-3">
+                <button type="button" class="underline-offset-2 hover:underline" (click)="toggleViewSort()" aria-label="Сортувати за переглядами">
+                  Перегляди{{ viewSortMark }}
+                </button>
+              </th>
               <th class="px-4 py-3">Оновлено</th>
               <th class="px-4 py-3">Дії</th>
             </tr>
@@ -107,6 +112,7 @@ import { adminUrl } from '../../../core/config/admin-routes';
                 <td class="px-4 py-3">{{ item.publicId }}</td>
                 <td class="px-4 py-3">{{ statusLabels[item.status] }}</td>
                 <td class="px-4 py-3">{{ privacyLabels[item.privacy] }}</td>
+                <td class="px-4 py-3 tabular-nums">{{ item.viewCount ?? 0 }}</td>
                 <td class="px-4 py-3">{{ item.updatedAt | date:'short' }}</td>
                 <td class="px-4 py-3">
                   <div class="flex flex-wrap gap-2">
@@ -222,6 +228,8 @@ export class AdminMemorialListPageComponent implements OnInit {
   status: MemorialStatus | undefined;
   billingFilter: BillingFilter | undefined;
   demoFilter: 'all' | 'client' | 'demo' = 'all';
+  sortBy: 'updatedAt' | 'viewCount' = 'updatedAt';
+  sortDir: 'asc' | 'desc' = 'desc';
   readonly statusLabels = STATUS_LABELS;
   readonly privacyLabels = PRIVACY_LABELS;
   readonly paymentStateLabels = PAYMENT_STATE_LABELS;
@@ -268,6 +276,23 @@ export class AdminMemorialListPageComponent implements OnInit {
     return adminUrl('preview', id);
   }
 
+  get viewSortMark(): string {
+    if (this.sortBy !== 'viewCount') {
+      return '';
+    }
+    return this.sortDir === 'asc' ? ' ↑' : ' ↓';
+  }
+
+  toggleViewSort(): void {
+    if (this.sortBy !== 'viewCount') {
+      this.sortBy = 'viewCount';
+      this.sortDir = 'desc';
+    } else {
+      this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+    }
+    this.load();
+  }
+
   load(): void {
     const isDemo = this.demoFilter === 'all' ? undefined : this.demoFilter === 'demo';
     this.api
@@ -275,7 +300,9 @@ export class AdminMemorialListPageComponent implements OnInit {
         search: this.search || undefined,
         status: this.status,
         isDemo,
-        billingFilter: this.billingFilter
+        billingFilter: this.billingFilter,
+        sortBy: this.sortBy,
+        sortDir: this.sortDir
       })
       .subscribe((r) => {
         this.items = r.items;
