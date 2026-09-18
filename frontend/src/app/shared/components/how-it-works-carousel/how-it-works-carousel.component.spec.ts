@@ -50,6 +50,9 @@ describe('HowItWorksCarouselComponent', () => {
     const source = fixture.nativeElement.querySelector('source') as HTMLSourceElement | null;
     expect(source?.getAttribute('media')).toContain('768px');
     expect(source?.getAttribute('srcset')).toContain('/mp1');
+    const track = fixture.nativeElement.querySelector('[role="region"] > div') as HTMLElement;
+    expect(track.className).toContain('touch-pan-y');
+    expect(track.className).toContain('touch-pan-x');
   });
 
   it('falls back to desktop image when mobile is missing', () => {

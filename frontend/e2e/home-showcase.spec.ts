@@ -297,6 +297,9 @@ test.describe('Home showcase', () => {
     const img = page.locator('app-how-it-works-carousel img').first();
     await expect(img).toHaveClass(/object-contain/);
     await expect(img).toHaveClass(/aspect-\[9\/16\]/);
+    const track = page.locator('app-how-it-works-carousel [role="region"] > div').first();
+    await expect(track).toHaveClass(/touch-pan-y/);
+    await expect(track).toHaveClass(/touch-pan-x/);
     const source = page.locator('app-how-it-works-carousel source').first();
     await expect(source).toHaveAttribute('srcset', /m1-preview/);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);

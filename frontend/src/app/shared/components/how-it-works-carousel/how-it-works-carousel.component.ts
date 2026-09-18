@@ -21,7 +21,7 @@ import { LightboxComponent, LightboxItem } from '../lightbox/lightbox.component'
     <div class="relative overflow-x-hidden" tabindex="0" role="region" aria-roledescription="карусель" aria-label="Як це працює">
       <div
         #track
-        class="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth pb-2 [scrollbar-width:none] [touch-action:pan-x] [&::-webkit-scrollbar]:hidden max-md:gap-0 max-md:px-8 md:px-[100px]"
+        class="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth pb-2 [scrollbar-width:none] touch-pan-x touch-pan-y [&::-webkit-scrollbar]:hidden max-md:gap-0 max-md:px-8 md:px-[100px]"
         (scroll)="onScroll()"
       >
         @for (slide of slides(); track $index; let i = $index) {
@@ -38,7 +38,7 @@ import { LightboxComponent, LightboxItem } from '../lightbox/lightbox.component'
             @if (desktopPhoto(slide)) {
               <button
                 type="button"
-                class="block w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-memorial-accent"
+                class="block w-full touch-pan-x touch-pan-y focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-memorial-accent"
                 [attr.aria-label]="'Відкрити зображення: ' + (slide.altText || slide.title)"
                 (click)="onImageClick(i, $event)"
               >

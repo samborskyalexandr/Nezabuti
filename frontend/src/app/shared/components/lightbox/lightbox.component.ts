@@ -77,16 +77,21 @@ export interface LightboxItem {
             </button>
           }
 
-          <div class="flex min-h-0 flex-1 items-center justify-center px-4 pb-8 pt-16 sm:px-16 sm:pb-10 sm:pt-20">
-            <figure class="relative flex max-h-full max-w-full flex-col items-center" (click)="$event.stopPropagation()">
-              <img
-                [src]="activeSrc()"
-                [alt]="current()?.alt || current()?.caption || 'Зображення'"
-                class="max-h-[92dvh] max-w-[95vw] object-contain select-none"
-                draggable="false"
-              />
+          <div class="grid min-h-0 flex-1 px-4 py-8 md:px-16 md:py-20">
+            <figure
+              class="flex h-full min-h-0 w-full flex-col items-center justify-center"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="flex min-h-0 flex-1 items-center justify-center">
+                <img
+                  [src]="activeSrc()"
+                  [alt]="current()?.alt || current()?.caption || 'Зображення'"
+                  class="max-h-full max-w-full object-contain select-none"
+                  draggable="false"
+                />
+              </div>
               @if (current()?.caption) {
-                <figcaption class="mt-4 max-w-lg rounded-full bg-black/35 px-4 py-1.5 text-center font-sans text-sm text-white shadow-sm sm:text-base">
+                <figcaption class="mt-2 shrink-0 max-w-lg rounded-full bg-black/35 px-4 py-1.5 text-center font-sans text-sm text-white shadow-sm md:mt-4 sm:text-base">
                   {{ current()?.caption }}
                 </figcaption>
               }
